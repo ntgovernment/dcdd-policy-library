@@ -144,7 +144,7 @@ This CommonJS Node.js script is the sole source of truth for both generated HTML
 - **`rewriteVendorPaths(html, prefix)`** — replaces every NTG intranet CDN URL (jQuery, auds.js, fotorama, components.js, etc.) with a local relative path. `prefix` is `"./"` for root pages (`index.html`) and `"../"` for `collection/*.html`.
 - **Back-to-search link** — each collection page renders `<a href="../index.html" onclick="if(history.length>1){history.back();return false;}">`. This uses browser history if available; otherwise navigates to `index.html`.
 - **Related policies** — the "Related policies" section on each collection page links to all sibling collection pages (all except the current one) using relative `slug.html` hrefs.
-- **Document grouping** — within each collection, results are grouped by `raw.resourcedoctype` (e.g. "Policy", "Procedure") and rendered as `<section class="policy-documents">` blocks.
+- **Document grouping** — within each collection, results are grouped by `raw.resourcedoctype` (e.g. "Policy", "Procedure") and rendered as `<section class="policy-documents">` blocks. Each document title is rendered as `Title TYPE (SIZE)` (e.g. `Gifts and benefits policy DOCX (389.1 KB)`) — matching the format produced by `formatFileMeta()` in `coveo-search.js` so that text fragment links from search result cards resolve correctly.
 - **Excluded document types** — results with `raw.resourcedoctype === "Supporting document"` are skipped during the collection map build. They do not appear on any collection page. The same type is excluded at runtime in `coveo-search.js` via the `EXCLUDED_DOCTYPE` constant.
 - **Google Analytics removal** — the script strips the `<script async src="https://www.googletagmanager.com/gtag/...">` block from `index.html` (GitHub Pages is a public preview, not a tracked environment).
 
@@ -154,16 +154,23 @@ To regenerate the collection slugs or add new collections, update `src/mock/cove
 
 An empty `.nojekyll` file at the repo root prevents GitHub Pages from running Jekyll preprocessing. Without it, GitHub Pages would ignore directories whose names start with `_` (like `dist/`) — and would also fail to serve paths containing dots (like `src/vendor/css/`). **Do not delete this file.**
 
-### Collection URL localisation
+### Collection URL localisation and text fragment links
 
-On GitHub Pages, `localiseCollectionUrl()` in `coveo-search.js` automatically rewrites intranet collection URLs in search result cards to local relative paths:
+`buildCollectionUrl()` in `coveo-search.js` builds the final href for each "Collection:" link in search result cards. It does two things:
 
-```
-https://internal.nt.gov.au/.../collections/gifts-and-benefits
-  → collection/gifts-and-benefits.html
-```
+1. **Localises the URL** (dev/GitHub Pages only) — `localiseCollectionUrl()` rewrites intranet collection URLs to local relative paths:
+   ```
+   https://internal.nt.gov.au/.../collections/gifts-and-benefits
+     → collection/gifts-and-benefits.html
+   ```
+   This runs whenever `window.location.hostname` is `localhost`, `127.0.0.1`, or ends with `.github.io`. On the production intranet the URL is left unchanged.
 
-This runs whenever `window.location.hostname` is `localhost`, `127.0.0.1`, or ends with `.github.io`. On the production intranet the collection URLs are left unchanged.
+2. **Appends a text fragment** — `formatFileMeta(raw)` derives the file-type/size suffix (e.g. `DOCX (612.4 KB)`) and encodes it as a [text fragment](https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments) appended to the URL:
+   ```
+   …/recruitment-policy-guidelines
+     → …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
+   ```
+   When the user clicks a "Collection:" link, the browser scrolls to and highlights the matching document on the collection page. No fragment is appended when the document has no file-type or size metadata.
 
 ### GitHub Pages vs production
 
@@ -854,9 +861,9 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-user-message`                      | Error / empty-state message; `padding: 0` (no vertical padding)                                                                                                                                                                                                                                             |
 | `.doc-search-results-list`                      | Card results `<ul>`                                                                                                                                                                                                                                                                                         |
 | `.doc-search-result`                            | Single result card `<li>`                                                                                                                                                                                                                                                                                   |
-| `.doc-search-result__title-link`                | Card title `<a>` — `display: flex` (block-level) so the following `<p>` sits flush below with no browser-default paragraph margin-top; `gap: 6px` spaces the title text from the file-meta suffix                                                                                                          |
+| `.doc-search-result__title-link`                | Card title `<a>` — `display: flex` (block-level) so the following `<p>` sits flush below with no browser-default paragraph margin-top; `gap: 6px` spaces the title text from the file-meta suffix                                                                                                           |
 | `.doc-search-result__title-text`                | `<span>` wrapping the document title text — `text-decoration: underline`; underline removed on hover/focus                                                                                                                                                                                                  |
-| `.doc-search-result__file-meta`                 | `<span>` wrapping the `FILETYPE (filesize)` suffix — inherits all styles from `.doc-search-result__title-link`; `text-decoration: underline` matches `.doc-search-result__title-text`; underline removed on hover/focus. Style overrides are present but commented out in `search-widget.css`.               |
+| `.doc-search-result__file-meta`                 | `<span>` wrapping the `FILETYPE (filesize)` suffix — inherits all styles from `.doc-search-result__title-link`; `text-decoration: underline` matches `.doc-search-result__title-text`; underline removed on hover/focus. Style overrides are present but commented out in `search-widget.css`.              |
 | `.doc-search-result__ext-icon`                  | Inline SVG external-link icon — **permanently hidden** via `display: none`. Present in the HTML template but suppressed. See _External link detection_ note above.                                                                                                                                          |
 | `.doc-search-result__description`               | Excerpt/description `<p>` — `margin: 12px 0 12px !important` overrides browser `<p>` default top margin                                                                                                                                                                                                     |
 | `.doc-search-result__collection-row`            | "Collection: …" row                                                                                                                                                                                                                                                                                         |
@@ -996,7 +1003,7 @@ Google Analytics 4 via Google Tag Manager. Tag ID: `G-WY2GK59DRN`. GTM is loaded
 
 - **`index.html` and `collection/*.html` are generated files — do not edit them manually.** They are produced by `scripts/generate-collection-pages.js` as the third step of `npm run build`. Any manual edits will be overwritten on the next build. To change the structure, layout, or content of the GitHub Pages static pages, edit the generator script or its template sources (`search-section-preview.html`, `collection-page-preview.html`, `src/mock/coveo-search-rest-api-query.json`).
 
-- **`localiseCollectionUrl()` rewrites collection links on GitHub Pages.** On `localhost`, `127.0.0.1`, or any `*.github.io` hostname, the `localiseCollectionUrl()` function in `coveo-search.js` intercepts the `raw.collectionurl` field before it is set as a link `href`. It extracts the slug from the intranet URL (e.g. `gifts-and-benefits`) and returns `collection/gifts-and-benefits.html` instead. This is applied in `renderCardResults()` and `renderTableResults()`. On the production intranet the function is a no-op (returns the URL unchanged) because `isDev` is `false`.
+- **`buildCollectionUrl()` constructs collection links with text fragment markup.** This function in `coveo-search.js` calls `localiseCollectionUrl()` to rewrite intranet URLs to local relative paths on GitHub Pages (and localhost), then appends a [text fragment](https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments) derived from `formatFileMeta(raw)` — e.g. `#:~:text=DOCX%20(612.4%20KB)`. When the user clicks a "Collection:" link, the browser scrolls to and highlights the matching document on the collection page. The fragment is omitted when the document has no file-type or size metadata. `localiseCollectionUrl()` remains the underlying URL-rewrite helper; `buildCollectionUrl()` is the call site used in `renderCardResults()`.
 
 - **`.nojekyll` must remain in the repository root.** GitHub Pages will silently drop directories whose names begin with `_` (including `dist/`) if Jekyll processing is enabled. The `.nojekyll` file disables Jekyll. It is an empty file — its presence is all that matters. If GitHub Pages ever stops serving `dist/` or `src/`, check that `.nojekyll` is present and tracked in git.
 

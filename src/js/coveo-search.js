@@ -108,7 +108,10 @@
  *                                               positioned 3px above the text baseline (top: -3px) with a
  *                                               2px right margin; JS does not modify the icon element
  *   [data-ref="search-result-collection"]      collection name text (raw.collectionname)
- *   [data-ref="search-result-collection-link"] <a> href = raw.collectionurl
+ *   [data-ref="search-result-collection-link"] <a> href = buildCollectionUrl(raw.collectionurl, raw)
+ *                                               — localised URL with a text fragment appended so the
+ *                                               browser scrolls to and highlights the matching document:
+ *                                               e.g. …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
  *   [data-ref="search-result-doctype"]         doctype badge text
  *   [data-ref="search-result-last-updated"]    formatted last-updated date
  *
@@ -152,10 +155,10 @@
  * ── TITLE COMPOSITION ────────────────────────────────────────────────────────
  * Card and table titles are both composed as:
  *   (raw.resourcefriendlytitle || result.title) + formatFileMeta(raw)
- * formatFileMeta() appends a parenthetical suffix when raw.resourcetype and/or
+ * formatFileMeta() appends a suffix when raw.resourcetype and/or
  * raw.resourcefilesize are present — for example:
- *   "My Document (PDF 354.2 KB)"    — both type and size present
- *   "My Document (DOCX)"            — type only (size absent)
+ *   "My Document PDF (354.2 KB)"    — both type and size present
+ *   "My Document DOCX"              — type only (size absent)
  *   "My Document (58.5 KB)"         — size only (type unmapped or absent)
  *   "My Document"                   — neither present
  * To add a new file type mapping, add an entry to FILE_TYPE_LABELS.
@@ -592,6 +595,22 @@
     if (!isDev || !url || url === "none") return url;
     var m = url.match(/\/collections\/([^/?#]+)/);
     return m ? "collection/" + m[1] + ".html" : url;
+  }
+
+  /**
+   * Builds the final href for a collection page link.
+   * Localises the URL (dev only) then appends a text fragment so the browser
+   * scrolls to and highlights the matching document on the collection page.
+   * Fragment format: #:~:text=DOCX%20(612.4%20KB)
+   * @param {string} url  raw.collectionurl from the Coveo result.
+   * @param {Object} raw  result.raw — used to derive the file-meta fragment text.
+   * @returns {string}
+   */
+  function buildCollectionUrl(url, raw) {
+    var base = localiseCollectionUrl(url);
+    if (!base || base === "none") return base;
+    var fileMeta = formatFileMeta(raw).trim();
+    return fileMeta ? base + "#:~:text=" + encodeURIComponent(fileMeta) : base;
   }
 
   var RESULTS_PER_PAGE_CARD = 10;
@@ -1154,7 +1173,7 @@
 
       // Collection row
       var collectionName = raw.collectionname || "";
-      var collectionUrl = localiseCollectionUrl(raw.collectionurl || "");
+      var collectionUrl = buildCollectionUrl(raw.collectionurl || "", raw);
       if (collectionName && collectionName !== "none" && collectionUrl) {
         $item
           .find('[data-ref="search-result-collection"]')
