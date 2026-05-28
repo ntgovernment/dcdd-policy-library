@@ -101,8 +101,10 @@
  *                                               contains a 16×16 document icon SVG
  *                                               (.doc-search-result__page-icon) and a text span.
  *                                               Populated asynchronously after card render.
- *   [data-ref="search-result-page-ids"]         comma-separated major_id values of
- *                                               reference-type upstream links (from Matrix API)
+ *   [data-ref="search-result-page-ids"]         comma-separated <a> links to parent intranet pages,
+ *                                               each with a text fragment appended so the browser
+ *                                               scrolls to and highlights the matching document:
+ *                                               e.g. …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
  *   [data-ref="search-result-collection-row"]  entire row hidden when no collection; contains a static
  *                                               16×16 folder icon SVG (.doc-search-result__collection-icon)
  *                                               positioned 3px above the text baseline (top: -3px) with a
@@ -567,15 +569,22 @@
   /**
    * Builds a comma-separated HTML string of <a> links from the resolved
    * page-link list returned by resolvePageLinks().
+   * When fileMeta is provided (e.g. "DOCX (612.4 KB)"), a text fragment is
+   * appended to each href so the browser scrolls to and highlights the
+   * matching document on the target page:
+   *   https://internal.nt.gov.au/…/page#:~:text=DOCX%20(612.4%20KB)
    * @param {Array<{name: string, path: string}>} pageLinks
+   * @param {string} [fileMeta]  Optional trimmed formatFileMeta() output.
    * @returns {string}  HTML; empty string when pageLinks is empty.
    */
-  function renderPageLinksHtml(pageLinks) {
+  function renderPageLinksHtml(pageLinks, fileMeta) {
+    var fragment = fileMeta ? "#:~:text=" + encodeURIComponent(fileMeta) : "";
     return pageLinks
       .map(function (p) {
         return (
           '<a href="https://' +
           $("<span>").text(p.path).html() +
+          fragment +
           '">' +
           $("<span>").text(p.name).html() +
           "</a>"
@@ -1208,7 +1217,7 @@
             }
             $card
               .find('[data-ref="search-result-page-ids"]')
-              .html(renderPageLinksHtml(pageLinks));
+              .html(renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()));
           });
         })($item);
       }
@@ -1289,11 +1298,11 @@
 
       // Async populate the Pages cell from the Squiz Matrix Management API.
       if (assetAssetId) {
-        (function ($cell) {
+        (function ($cell, fileMeta) {
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
-            $cell.html(renderPageLinksHtml(pageLinks));
+            $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
           });
-        })($row.find(".doc-search-table__col-pages"));
+        })($row.find(".doc-search-table__col-pages"), formatFileMeta(raw).trim());
       }
     });
   }
