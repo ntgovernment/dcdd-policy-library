@@ -84,7 +84,7 @@
  *   #doc-search-table-body        <tbody> populated with table rows
  *   #doc-search-results-summary   receives "Showing X–Y of Z results" text
  *   #doc-search-pagination        receives prev/page-number/next buttons
- *   input[name="doc-search-sort"] radio group; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
+ *   select[name="doc-search-sort"] dropdown; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   #doc-search-view-toggle       button; aria-pressed="true" = table view active
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
  *   #doc-search-category-filters  <ul> receives Category facet checkboxes
@@ -140,7 +140,7 @@
  *
  * ── URL PARAMETERS READ ON INIT ──────────────────────────────────────────────
  *   ?searchterm=<string>  pre-fills #search and immediately runs a search
- *   ?sort=<string>        pre-selects sort; must match a radio input value:
+ *   ?sort=<string>        pre-selects sort; must match a select option value:
  *                           "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *
  * ── KEY CONSTANTS ────────────────────────────────────────────────────────────
@@ -1618,10 +1618,7 @@
       "#doc-search-drawer-category-filters",
       activeCategoryFilters,
     );
-    $('input[name="doc-search-drawer-sort"][value="' + currentSort + '"]').prop(
-      "checked",
-      true,
-    );
+    $('select[name="doc-search-drawer-sort"]').val(currentSort);
   }
 
   /** Opens the mobile filter drawer. */
@@ -1670,12 +1667,9 @@
   $(document).on("click", "#doc-search-drawer-apply", function () {
     // Read sort
     var drawerSort =
-      $('input[name="doc-search-drawer-sort"]:checked').val() || "relevancy";
+      $('select[name="doc-search-drawer-sort"]').val() || "relevancy";
     currentSort = drawerSort;
-    $('input[name="doc-search-sort"][value="' + drawerSort + '"]').prop(
-      "checked",
-      true,
-    );
+    $('select[name="doc-search-sort"]').val(drawerSort);
 
     // Rebuild filter sets from drawer checkboxes
     activeTypeFilters.clear();
@@ -1702,10 +1696,7 @@
   // Clear all filters inside drawer (resets UI without applying)
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
-    $('input[name="doc-search-drawer-sort"][value="relevancy"]').prop(
-      "checked",
-      true,
-    );
+    $('select[name="doc-search-drawer-sort"]').val("relevancy");
   });
 
   // ── Event: checkbox filter change ────────────────────────────────────────────
@@ -1768,7 +1759,7 @@
   });
 
   // ── Event: sort change ───────────────────────────────────────────────────────
-  $(document).on("change", 'input[name="doc-search-sort"]', function () {
+  $(document).on("change", 'select[name="doc-search-sort"]', function () {
     currentSort = $(this).val();
     applySort();
     applyFilters();
@@ -1816,10 +1807,7 @@
 
     if (urlSort) {
       currentSort = urlSort;
-      $('input[name="doc-search-sort"][value="' + urlSort + '"]').prop(
-        "checked",
-        true,
-      );
+      $('select[name="doc-search-sort"]').val(urlSort);
     }
 
     // Pre-fill search input if present

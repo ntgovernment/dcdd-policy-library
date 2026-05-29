@@ -129,7 +129,7 @@ node scripts/generate-collection-pages.js     # 3. Static HTML generation
 Step 3 (`generate-collection-pages.js`) produces:
 
 - **`index.html`** at the repo root — the search page, derived from `search-section-preview.html` with all NTG CDN asset refs replaced by local relative paths and the `<title>` updated.
-- **`collection/<slug>.html`** — one page per collection (7 total), derived from `collection-page-preview.html` + the Coveo mock data. Each page gets the full document list, a back-to-search link, and a "Related policies" section linking to the other 6 collections.
+- **`collection/<slug>.html`** — one page per collection (8 total), derived from `collection-page-preview.html` + the Coveo mock data. Each page gets the full document list, a back-to-search link, and a "Related policies" section linking to the other 7 collections.
 
 GitHub Actions (`.github/workflows/deploy.yml`) then:
 
@@ -176,7 +176,7 @@ An empty `.nojekyll` file at the repo root prevents GitHub Pages from running Je
 
 | Aspect           | GitHub Pages                      | Production (Matrix)   |
 | ---------------- | --------------------------------- | --------------------- |
-| Data source      | Mock JSON (43 results, static)    | Live Coveo REST API   |
+| Data source      | Mock JSON (36 results, static)    | Live Coveo REST API   |
 | Hosting          | GitHub Pages static files         | Squiz Matrix CMS      |
 | Authentication   | None (public)                     | NTG intranet login    |
 | Collection pages | Static HTML (generated from mock) | Dynamic Matrix pages  |
@@ -226,14 +226,14 @@ Run `npm run build` once before committing to ensure `dist/` reflects the final 
 
 | Environment                               | Data source                                                             |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
-| `localhost` / `127.0.0.1`                 | `src/mock/coveo-search-rest-api-query.json` (34 results, no VPN needed) |
+| `localhost` / `127.0.0.1`                 | `src/mock/coveo-search-rest-api-query.json` (36 results, no VPN needed) |
 |                                           | `src/mock/matrix-asset-links.json` (page links, no VPN needed)          |
 | `*.github.io` (GitHub Pages)              | `src/mock/coveo-search-rest-api-query.json` (same mock data, no VPN)    |
 |                                           | `src/mock/matrix-asset-links.json` (same mock page links, no VPN)       |
 | All other hostnames (production intranet) | Live Coveo REST API at `search-internal.nt.gov.au`                      |
 |                                           | Live Squiz Matrix Management API at `internal.nt.gov.au`                |
 
-The mock JSON always returns the same 43 results regardless of the query. It exercises the full rendering pipeline (filters, pagination, card/table view) without network access.
+The mock JSON always returns the same 36 results regardless of the query. It exercises the full rendering pipeline (filters, pagination, card/table view) without network access.
 
 ### Standard change workflow
 
@@ -351,6 +351,7 @@ document-library/
 │   ├── gifts-and-benefits.html
 │   ├── work-health-and-safety.html
 │   ├── prepare-to-welcome-new-employees.html
+│   ├── recruitment-policy.html
 │   ├── fraud-and-corruption.html
 │   ├── risk-management.html
 │   ├── employment-screening.html
@@ -961,11 +962,11 @@ Google Analytics 4 via Google Tag Manager. Tag ID: `G-WY2GK59DRN`. GTM is loaded
 
 - **VPN required for production search.** The Coveo endpoint (`https://internal.nt.gov.au/...`) is only reachable on the NTG network. `coveo-search.js` automatically falls back to the mock JSON when `hostname` is `localhost` or `127.0.0.1`. Do not use a `?a=<assetId>` Matrix shorthand URL — it resolves to an HTML page, not JSON.
 
-- **Mock data is static.** `src/mock/coveo-search-rest-api-query.json` always returns the same 43 results regardless of the query string. It is a snapshot used purely to exercise the rendering pipeline locally.
+- **Mock data is static.** `src/mock/coveo-search-rest-api-query.json` always returns the same 36 results regardless of the query string. It is a snapshot used purely to exercise the rendering pipeline locally.
 
-- **Sort is client-side; filters are preserved on sort change.** Changing the sort radio buttons (`input[name="doc-search-sort"]` in the sidebar, or `input[name="doc-search-drawer-sort"]` in the mobile drawer) calls `applySort()` then `applyFilters()` — no API call, no filter reset. `originalResults` always holds the unmodified API response so "Relevance" can restore it cheaply. The mobile drawer has its own radio group that mirrors the sidebar state; the "Apply filters" button syncs the drawer selection back to the sidebar before firing.
+- **Sort is client-side; filters are preserved on sort change.** Changing the sort dropdown (`select[name="doc-search-sort"]` in the sidebar, or `select[name="doc-search-drawer-sort"]` in the mobile drawer) calls `applySort()` then `applyFilters()` — no API call, no filter reset. `originalResults` always holds the unmodified API response so "Relevance" can restore it cheaply. The mobile drawer has its own select that mirrors the sidebar state; the "Apply filters" button syncs the drawer selection back to the sidebar before firing.
 
-- **Mobile filter drawer.** On screens ≤ 900 px the filter sidebar is hidden and replaced by a "Filters" pill button (`#doc-search-mobile-filter-btn`). Tapping it opens a slide-in drawer (`#doc-search-drawer`, `position: fixed`, slides from the right) with the full sort + facet UI duplicated. The drawer has its own sort radio group (`name="doc-search-drawer-sort"`) and its own Type/Category checkbox lists. On "Apply filters" (`#doc-search-drawer-apply`), `coveo-search.js` reads the drawer sort selection, syncs it to the sidebar radios, reads the drawer checkboxes, syncs them to the sidebar checkboxes, then calls `applySort()` + `applyFilters()`. On "Clear all filters" (`#doc-search-drawer-clear`), sort resets to `relevancy` and all checkboxes are unchecked (in both drawer and sidebar). The overlay and close button both fire the same close routine.
+- **Mobile filter drawer.** On screens ≤ 900 px the filter sidebar is hidden and replaced by a "Filters" pill button (`#doc-search-mobile-filter-btn`). Tapping it opens a slide-in drawer (`#doc-search-drawer`, `position: fixed`, slides from the right) with the full sort + facet UI duplicated. The drawer has its own sort dropdown (`name="doc-search-drawer-sort"`) and its own Type/Category checkbox lists. On "Apply filters" (`#doc-search-drawer-apply`), `coveo-search.js` reads the drawer sort selection, syncs it to the sidebar select, reads the drawer checkboxes, syncs them to the sidebar checkboxes, then calls `applySort()` + `applyFilters()`. On "Clear all filters" (`#doc-search-drawer-clear`), sort resets to `relevancy` and all checkboxes are unchecked (in both drawer and sidebar). The overlay and close button both fire the same close routine.
 
   **Active filter counter on the button:** After every `applyFilters()` call, `updateMobileFilterCount()` is called automatically (it is the last line in `applyFilters()`). It computes `activeTypeFilters.size + activeCategoryFilters.size` and sets `#doc-search-filter-count`'s text to `(N)` when N > 0, or `""` when no filters are active — producing "Filters (3)" or just "Filters". This covers all code paths that change filter state: sidebar checkbox changes, drawer "Apply filters", and any future callers of `applyFilters()`.
 
