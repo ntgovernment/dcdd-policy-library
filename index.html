@@ -1273,6 +1273,16 @@
                         </svg>
                     </button>
 
+                    <!-- Governance contact callout -->
+                    <div class="ntgc-callout ntgc-my-24">
+                        <div>
+                            <p>Can't find what you're looking for or need a document added? Contact&nbsp;<a
+                                    href="mailto:governance.dcdd@nt.gov.au">governance.dcdd@nt.gov.au</a></p>
+                            <p>Find whole-of-government policies on <a
+                                    href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.</p>
+                        </div>
+                    </div>
+
                     <!-- Results header -->
                     <div class="doc-search-results-header">
                         <p class="doc-search-results-summary" id="doc-search-results-summary"></p>
@@ -1296,7 +1306,7 @@
                                     <th class="doc-search-table__col-title">Title</th>
                                     <th class="doc-search-table__col-updated">Last Updated</th>
                                     <th class="doc-search-table__col-type">Type</th>
-                                    <th class="doc-search-table__col-collection">Collection</th>
+                                    <th class="doc-search-table__col-collection">Pages</th>
                                 </tr>
                             </thead>
                             <tbody id="doc-search-table-body"></tbody>
@@ -1311,38 +1321,20 @@
 
                 <!-- Filter sidebar -->
                 <aside class="doc-search-sidebar" id="doc-search-sidebar" aria-label="Filter results">
-                    <div class="doc-search-filter-group">
-                        <button type="button" class="doc-search-filter-group__toggle" aria-expanded="false"
-                            aria-controls="doc-search-sort-group">
-                            <span>Sort by</span>
-                            <svg class="doc-search-filter-group__chevron" aria-hidden="true" width="16" height="16"
+                    <div class="doc-search-filter-group doc-search-filter-group--sort">
+                        <label class="doc-search-sort-label" for="doc-search-sort">Sort by</label>
+                        <div class="doc-search-sort-select">
+                            <select class="doc-search-sort-select__input" id="doc-search-sort" name="doc-search-sort">
+                                <option value="relevancy" selected>Relevance</option>
+                                <option value="date descending">Last updated</option>
+                                <option value="alpha ascending">A – Z</option>
+                                <option value="alpha descending">Z – A</option>
+                            </select>
+                            <svg class="doc-search-sort-select__chevron" aria-hidden="true" width="20" height="20"
                                 viewBox="61.5 9.3 13 7" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                 <path
                                     d="M67.5967 15.353C67.8181 15.5468 68.1824 15.5468 68.4038 15.353L74.1181 10.353C74.3395 10.1593 74.3395 9.84053 74.1181 9.64678C73.8967 9.45303 73.5324 9.45303 73.311 9.64678L68.0002 14.2937L62.6895 9.64678C62.4681 9.45303 62.1038 9.45303 61.8824 9.64678C61.661 9.84053 61.661 10.1593 61.8824 10.353L67.5967 15.353Z" />
                             </svg>
-                        </button>
-                        <div class="doc-search-sort-group" role="radiogroup" aria-label="Sort results by"
-                            id="doc-search-sort-group">
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-sort" value="relevancy" checked>
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">Relevance</span>
-                            </label>
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-sort" value="date descending">
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">Last updated</span>
-                            </label>
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-sort" value="alpha ascending">
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">A – Z</span>
-                            </label>
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-sort" value="alpha descending">
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">Z – A</span>
-                            </label>
                         </div>
                     </div>
                     <div class="doc-search-filter-group">
@@ -1381,38 +1373,21 @@
 
                 <!-- Drawer body (scrollable) -->
                 <div class="doc-search-drawer__body">
-                    <div class="doc-search-filter-group">
-                        <button type="button" class="doc-search-filter-group__toggle" aria-expanded="false"
-                            aria-controls="doc-search-drawer-sort-group">
-                            <span>Sort by</span>
-                            <svg class="doc-search-filter-group__chevron" aria-hidden="true" width="16" height="16"
+                    <div class="doc-search-filter-group doc-search-filter-group--sort">
+                        <label class="doc-search-sort-label" for="doc-search-drawer-sort">Sort by</label>
+                        <div class="doc-search-sort-select">
+                            <select class="doc-search-sort-select__input" id="doc-search-drawer-sort"
+                                name="doc-search-drawer-sort">
+                                <option value="relevancy" selected>Relevance</option>
+                                <option value="date descending">Last updated</option>
+                                <option value="alpha ascending">A – Z</option>
+                                <option value="alpha descending">Z – A</option>
+                            </select>
+                            <svg class="doc-search-sort-select__chevron" aria-hidden="true" width="20" height="20"
                                 viewBox="61.5 9.3 13 7" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                 <path
                                     d="M67.5967 15.353C67.8181 15.5468 68.1824 15.5468 68.4038 15.353L74.1181 10.353C74.3395 10.1593 74.3395 9.84053 74.1181 9.64678C73.8967 9.45303 73.5324 9.45303 73.311 9.64678L68.0002 14.2937L62.6895 9.64678C62.4681 9.45303 62.1038 9.45303 61.8824 9.64678C61.661 9.84053 61.661 10.1593 61.8824 10.353L67.5967 15.353Z" />
                             </svg>
-                        </button>
-                        <div class="doc-search-sort-group" role="radiogroup" aria-label="Sort results by"
-                            id="doc-search-drawer-sort-group">
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-drawer-sort" value="relevancy" checked>
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">Relevance</span>
-                            </label>
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-drawer-sort" value="date descending">
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">Last updated</span>
-                            </label>
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-drawer-sort" value="alpha ascending">
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">A – Z</span>
-                            </label>
-                            <label class="doc-search-sort-option">
-                                <input type="radio" name="doc-search-drawer-sort" value="alpha descending">
-                                <span class="doc-search-sort-option__radio" aria-hidden="true"></span>
-                                <span class="doc-search-sort-option__label">Z – A</span>
-                            </label>
                         </div>
                     </div>
                     <div class="doc-search-filter-group">
@@ -1454,6 +1429,17 @@
                 </svg>
             </a>
             <p class="doc-search-result__description" data-ref="search-result-description"></p>
+            <div class="doc-search-result__page-row" data-ref="search-result-page-row" hidden>
+                <svg class="doc-search-result__page-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                </svg>
+                <span data-ref="search-result-page-label">Page:</span> <span data-ref="search-result-page-ids"></span>
+            </div>
             <div class="doc-search-result__collection-row" data-ref="search-result-collection-row">
                 <svg class="doc-search-result__collection-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"
                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -1,0 +1,166 @@
+{
+  "945416": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "1642200",
+      "major_id": "1008494",
+      "minor_id": "945416"
+    },
+    {
+      "link_type": "reference",
+      "value": "",
+      "sort_order": 1,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "2076619",
+      "major_id": "1282964",
+      "minor_id": "945416"
+    }
+  ],
+  "944981": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "1642201",
+      "major_id": "1008494",
+      "minor_id": "944981"
+    }
+  ],
+  "944944": [
+    {
+      "link_type": "reference",
+      "value": "",
+      "sort_order": 1,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "2076620",
+      "major_id": "1350210",
+      "minor_id": "944944"
+    },
+    {
+      "link_type": "reference",
+      "value": "",
+      "sort_order": 2,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "2076621",
+      "major_id": "1350215",
+      "minor_id": "944944"
+    }
+  ],
+  "944939": [],
+  "944935": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "1642205",
+      "major_id": "1008494",
+      "minor_id": "944935"
+    },
+    {
+      "link_type": "reference",
+      "value": "",
+      "sort_order": 1,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "2076622",
+      "major_id": "1282964",
+      "minor_id": "944935"
+    }
+  ],
+  "944931": [],
+  "944911": [
+    {
+      "link_type": "reference",
+      "value": "",
+      "sort_order": 1,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "2076623",
+      "major_id": "1400500",
+      "minor_id": "944911"
+    }
+  ],
+  "944903": [],
+  "935817": [],
+  "935816": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "1642210",
+      "major_id": "1008494",
+      "minor_id": "935816"
+    },
+    {
+      "link_type": "reference",
+      "value": "",
+      "sort_order": 1,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "2076624",
+      "major_id": "1282964",
+      "minor_id": "935816"
+    }
+  ],
+  "1282964": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "3000001",
+      "major_id": "1500100",
+      "minor_id": "1282964"
+    }
+  ],
+  "1350210": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "3000002",
+      "major_id": "1500200",
+      "minor_id": "1350210"
+    }
+  ],
+  "1350215": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "3000003",
+      "major_id": "1500200",
+      "minor_id": "1350215"
+    }
+  ],
+  "1400500": [
+    {
+      "link_type": "menu",
+      "value": "",
+      "sort_order": 0,
+      "is_dependent": false,
+      "is_exclusive": false,
+      "link_id": "3000004",
+      "major_id": "1500300",
+      "minor_id": "1400500"
+    }
+  ]
+}

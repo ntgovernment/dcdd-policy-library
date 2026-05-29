@@ -129,7 +129,7 @@ node scripts/generate-collection-pages.js     # 3. Static HTML generation
 Step 3 (`generate-collection-pages.js`) produces:
 
 - **`index.html`** at the repo root — the search page, derived from `search-section-preview.html` with all NTG CDN asset refs replaced by local relative paths and the `<title>` updated.
-- **`collection/<slug>.html`** — one page per collection (7 total), derived from `collection-page-preview.html` + the Coveo mock data. Each page gets the full document list, a back-to-search link, and a "Related policies" section linking to the other 6 collections.
+- **`collection/<slug>.html`** — one page per collection (8 total), derived from `collection-page-preview.html` + the Coveo mock data. Each page gets the full document list, a back-to-search link, and a "Related policies" section linking to the other 7 collections.
 
 GitHub Actions (`.github/workflows/deploy.yml`) then:
 
@@ -144,7 +144,8 @@ This CommonJS Node.js script is the sole source of truth for both generated HTML
 - **`rewriteVendorPaths(html, prefix)`** — replaces every NTG intranet CDN URL (jQuery, auds.js, fotorama, components.js, etc.) with a local relative path. `prefix` is `"./"` for root pages (`index.html`) and `"../"` for `collection/*.html`.
 - **Back-to-search link** — each collection page renders `<a href="../index.html" onclick="if(history.length>1){history.back();return false;}">`. This uses browser history if available; otherwise navigates to `index.html`.
 - **Related policies** — the "Related policies" section on each collection page links to all sibling collection pages (all except the current one) using relative `slug.html` hrefs.
-- **Document grouping** — within each collection, results are grouped by `raw.resourcedoctype` (e.g. "Policy", "Procedure") and rendered as `<section class="policy-documents">` blocks.
+- **Document grouping** — within each collection, results are grouped by `raw.resourcedoctype` (e.g. "Policy", "Procedure") and rendered as `<section class="policy-documents">` blocks. Each document title is rendered as `Title TYPE (SIZE)` (e.g. `Gifts and benefits policy DOCX (389.1 KB)`) — matching the format produced by `formatFileMeta()` in `coveo-search.js` so that text fragment links from search result cards resolve correctly.
+- **Excluded document types** — results with `raw.resourcedoctype === "Supporting document"` are skipped during the collection map build. They do not appear on any collection page. The same type is excluded at runtime in `coveo-search.js` via the `EXCLUDED_DOCTYPE` constant.
 - **Google Analytics removal** — the script strips the `<script async src="https://www.googletagmanager.com/gtag/...">` block from `index.html` (GitHub Pages is a public preview, not a tracked environment).
 
 To regenerate the collection slugs or add new collections, update `src/mock/coveo-search-rest-api-query.json` and run `npm run build`.
@@ -153,28 +154,35 @@ To regenerate the collection slugs or add new collections, update `src/mock/cove
 
 An empty `.nojekyll` file at the repo root prevents GitHub Pages from running Jekyll preprocessing. Without it, GitHub Pages would ignore directories whose names start with `_` (like `dist/`) — and would also fail to serve paths containing dots (like `src/vendor/css/`). **Do not delete this file.**
 
-### Collection URL localisation
+### Collection URL localisation and text fragment links
 
-On GitHub Pages, `localiseCollectionUrl()` in `coveo-search.js` automatically rewrites intranet collection URLs in search result cards to local relative paths:
+`buildCollectionUrl()` in `coveo-search.js` builds the final href for each "Collection:" link in search result cards. It does two things:
 
-```
-https://internal.nt.gov.au/.../collections/gifts-and-benefits
-  → collection/gifts-and-benefits.html
-```
+1. **Localises the URL** (dev/GitHub Pages only) — `localiseCollectionUrl()` rewrites intranet collection URLs to local relative paths:
+   ```
+   https://internal.nt.gov.au/.../collections/gifts-and-benefits
+     → collection/gifts-and-benefits.html
+   ```
+   This runs whenever `window.location.hostname` is `localhost`, `127.0.0.1`, or ends with `.github.io`. On the production intranet the URL is left unchanged.
 
-This runs whenever `window.location.hostname` is `localhost`, `127.0.0.1`, or ends with `.github.io`. On the production intranet the collection URLs are left unchanged.
+2. **Appends a text fragment** — `formatFileMeta(raw)` derives the file-type/size suffix (e.g. `DOCX (612.4 KB)`) and encodes it as a [text fragment](https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments) appended to the URL:
+   ```
+   …/recruitment-policy-guidelines
+     → …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
+   ```
+   When the user clicks a "Collection:" link, the browser scrolls to and highlights the matching document on the collection page. No fragment is appended when the document has no file-type or size metadata.
 
 ### GitHub Pages vs production
 
 | Aspect           | GitHub Pages                      | Production (Matrix)   |
 | ---------------- | --------------------------------- | --------------------- |
-| Data source      | Mock JSON (43 results, static)    | Live Coveo REST API   |
+| Data source      | Mock JSON (36 results, static)    | Live Coveo REST API   |
 | Hosting          | GitHub Pages static files         | Squiz Matrix CMS      |
 | Authentication   | None (public)                     | NTG intranet login    |
 | Collection pages | Static HTML (generated from mock) | Dynamic Matrix pages  |
 | Purpose          | Development preview and demos     | Live intranet service |
 
-> GitHub Pages is a **preview environment**, not a production mirror. It always serves the same 43 mock results regardless of query, and collection page data is baked in at build time.
+> GitHub Pages is a **preview environment**, not a production mirror. It always serves the same mock results regardless of query, and collection page data is baked in at build time. Documents with `resourcedoctype` of `"Supporting document"` are excluded from both search results and collection pages.
 
 ---
 
@@ -218,11 +226,14 @@ Run `npm run build` once before committing to ensure `dist/` reflects the final 
 
 | Environment                               | Data source                                                             |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
-| `localhost` / `127.0.0.1`                 | `src/mock/coveo-search-rest-api-query.json` (43 results, no VPN needed) |
+| `localhost` / `127.0.0.1`                 | `src/mock/coveo-search-rest-api-query.json` (36 results, no VPN needed) |
+|                                           | `src/mock/matrix-asset-links.json` (page links, no VPN needed)          |
 | `*.github.io` (GitHub Pages)              | `src/mock/coveo-search-rest-api-query.json` (same mock data, no VPN)    |
+|                                           | `src/mock/matrix-asset-links.json` (same mock page links, no VPN)       |
 | All other hostnames (production intranet) | Live Coveo REST API at `search-internal.nt.gov.au`                      |
+|                                           | Live Squiz Matrix Management API at `internal.nt.gov.au`                |
 
-The mock JSON always returns the same 43 results regardless of the query. It exercises the full rendering pipeline (filters, pagination, card/table view) without network access.
+The mock JSON always returns the same 36 results regardless of the query. It exercises the full rendering pipeline (filters, pagination, card/table view) without network access.
 
 ### Standard change workflow
 
@@ -297,7 +308,8 @@ document-library/
 │   │   ├── main.css                          # NTG central stylesheet (~13,900 lines) — loaded by Matrix, NOT bundled
 │   │   └── status-toolbar.css                # Dev/test status toolbar styles — loaded by Matrix, NOT bundled
 │   ├── mock/
-│   │   └── coveo-search-rest-api-query.json  # 189-result Coveo API snapshot for local dev
+│   │   ├── coveo-search-rest-api-query.json  # 43-result Coveo API snapshot for local dev
+│   │   └── matrix-asset-links.json           # Mock upstream page-link responses keyed by assetId for local dev
 │   └── vendor/                               ← Third-party locked dependencies — do not edit
 │       ├── js/
 │       │   ├── jquery-3.4.1.min.js           # jQuery 3.4.1 (loaded by Matrix paint layout before this bundle)
@@ -339,6 +351,7 @@ document-library/
 │   ├── gifts-and-benefits.html
 │   ├── work-health-and-safety.html
 │   ├── prepare-to-welcome-new-employees.html
+│   ├── recruitment-policy.html
 │   ├── fraud-and-corruption.html
 │   ├── risk-management.html
 │   ├── employment-screening.html
@@ -372,6 +385,7 @@ document-library/
 | Add a file to the search bundle                            | Add `import './...'` to `src/search-page.js`          | `npm run build` → commit src+dist    |
 | Add a file to the collection bundle                        | Add `import './...'` to `src/collection-page.js`      | `npm run build` → commit src+dist    |
 | Change mock data for local testing                         | `src/mock/coveo-search-rest-api-query.json`           | No build needed (fetched at runtime) |
+| Change mock page-link data for local testing               | `src/mock/matrix-asset-links.json`                    | No build needed (fetched at runtime) |
 | Update GitHub Pages static page generation                 | `scripts/generate-collection-pages.js`                | `npm run build` → commit             |
 | Update GitHub Actions deployment workflow                  | `.github/workflows/deploy.yml`                        | Commit; triggers on push to main     |
 | Upgrade a vendor library                                   | Replace in `src/vendor/`; update Matrix page template | `npm run build` → commit             |
@@ -386,21 +400,21 @@ All CSS custom properties (design tokens) are declared in **[`src/css/tokens.css
 
 ### Colour tokens
 
-| Token                    | Value     | Usage                                                       |
-| ------------------------ | --------- | ----------------------------------------------------------- |
-| `--clr-primary`          | `#343741` | NTG body text                                               |
-| `--clr-text-default`     | `#102040` | Widget body text, links (`--clr-link-default` is an alias)  |
-| `--clr-link-default`     | `#102040` | All link colours                                            |
-| `--clr-link-hover`       | `#208820` | Link hover state; collection page back-to-search arrow icon |
-| `--clr-text-alt`         | `#384560` | Secondary text, input placeholder                           |
-| `--clr-text-emphasis`    | `#208820` | Emphasis / positive text (green)                            |
-| `--clr-border-subtle`    | `#d0e0e0` | Borders, outlines                                           |
-| `--clr-bg-default`       | `#ffffff` | Input background                                            |
-| `--clr-bg-shade`         | `#f5f5f7` | Card/item background (collection page)                      |
-| `--clr-bg-shade-alt`     | `#ecf0f0` | Results area background (search widget)                     |
-| `--clr-icon-subtle`      | `#878f9f` | Toggle pill (off state)                                     |
-| `--clr-icon-default`     | `#208820` | Prev/Next pagination icon hover                             |
-| `--clr-surface-selected` | `#107810` | Active pagination page / toggle (on)                        |
+| Token                    | Value     | Usage                                                                                                  |
+| ------------------------ | --------- | ------------------------------------------------------------------------------------------------------ |
+| `--clr-primary`          | `#343741` | NTG body text                                                                                          |
+| `--clr-text-default`     | `#102040` | Widget body text, links (`--clr-link-default` is an alias)                                             |
+| `--clr-link-default`     | `#102040` | All link colours                                                                                       |
+| `--clr-tertiary`         | `#167abe` | Search result title links, table title links, collection links, page row links, "Apply filters" button |
+| `--clr-text-alt`         | `#384560` | Secondary text, input placeholder                                                                      |
+| `--clr-text-emphasis`    | `#208820` | Emphasis / positive text (green)                                                                       |
+| `--clr-border-subtle`    | `#d0e0e0` | Borders, outlines                                                                                      |
+| `--clr-bg-default`       | `#ffffff` | Input background                                                                                       |
+| `--clr-bg-shade`         | `#f5f5f7` | Card/item background (collection page)                                                                 |
+| `--clr-bg-shade-alt`     | `#ecf0f0` | Results area background (search widget)                                                                |
+| `--clr-icon-subtle`      | `#878f9f` | Toggle pill (off state)                                                                                |
+| `--clr-icon-default`     | `#208820` | Prev/Next pagination icon hover                                                                        |
+| `--clr-surface-selected` | `#107810` | Active pagination page / toggle (on)                                                                   |
 
 ### Typography tokens
 
@@ -408,9 +422,9 @@ All CSS custom properties (design tokens) are declared in **[`src/css/tokens.css
 | ------------------------ | ------------------ |
 | `--font-size-xs`         | `0.875rem` (14 px) |
 | `--font-size-sm`         | `1rem` (16 px)     |
-| `--font-size-md`         | `1.125rem` (18 px) |
-| `--font-size-lg`         | `1.25rem` (20 px)  |
-| `--font-size-xl`         | `1.5rem` (24 px)   |
+| `--font-size-md`         | `1.25rem` (20 px)  |
+| `--font-size-lg`         | `1.375rem` (22 px) |
+| `--font-size-xl`         | `1.625rem` (26 px) |
 | `--font-size-2xl`        | `1.875rem` (30 px) |
 | `--font-size-3xl`        | `2.25rem` (36 px)  |
 | `--font-weight-regular`  | `400`              |
@@ -660,30 +674,68 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 
 **Module state (inside the IIFE):**
 
-| Variable                | Type   | Purpose                                                                                           |
-| ----------------------- | ------ | ------------------------------------------------------------------------------------------------- |
-| `originalResults`       | Array  | Raw API response order — restored when sort is set back to "Relevance"                            |
-| `allResults`            | Array  | Sorted copy of `originalResults`; source for filter and render operations                         |
-| `filteredResults`       | Array  | Subset of `allResults` after applying active checkbox filters                                     |
-| `currentPage`           | Number | Current pagination page (1-based)                                                                 |
-| `activeTypeFilters`     | Set    | Checked values under the Type facet                                                               |
-| `activeCategoryFilters` | Set    | Checked values under the Category facet                                                           |
-| `currentSort`           | String | Active sort — `"relevancy"` \| `"date descending"` \| `"alpha ascending"` \| `"alpha descending"` |
-| `currentQuery`          | String | Last query string passed to `runSearch()`                                                         |
+| Variable                | Type   | Purpose                                                                                                                                                                                                                                                  |
+| ----------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `masterResults`         | Array  | Complete document corpus (all results for an empty query); populated once on the first `runSearch()` call and never cleared; provides the stable value list for all facets so Type/Category options do not disappear when a query narrows the result set |
+| `originalResults`       | Array  | Raw API response order for the current query — restored when sort is set back to "Relevance"                                                                                                                                                             |
+| `allResults`            | Array  | Sorted copy of `originalResults`; source for filter and render operations                                                                                                                                                                                |
+| `filteredResults`       | Array  | Subset of `allResults` after applying active checkbox filters                                                                                                                                                                                            |
+| `currentPage`           | Number | Current pagination page (1-based)                                                                                                                                                                                                                        |
+| `activeTypeFilters`     | Set    | Checked values under the Type facet                                                                                                                                                                                                                      |
+| `activeCategoryFilters` | Set    | Checked values under the Category facet                                                                                                                                                                                                                  |
+| `currentSort`           | String | Active sort — `"relevancy"` \| `"date descending"` \| `"alpha ascending"` \| `"alpha descending"`                                                                                                                                                        |
+| `currentQuery`          | String | Last query string passed to `runSearch()`                                                                                                                                                                                                                |
+| `matrixMockCache`       | Object | Cached contents of `matrix-asset-links.json` (dev mode only); `null` until the first `fetchPageLinks()` call, then populated and reused for all subsequent calls on the same page load                                                                   |
 
 **`data-ref` bindings** (attributes on elements inside `.search-template`, populated by `renderCardResults()`):
 
-| `data-ref` value                | Coveo API field                                                                                                                                                                               |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search-result-link`            | `raw.asseturl \|\| result.clickUri` — set as `href`                                                                                                                                           |
-| `search-result-title`           | `raw.resourcefriendlytitle \|\| result.title`                                                                                                                                                 |
-| `search-result-extlink`         | **Unused — icon is permanently hidden.** The SVG is present in the template with `hidden` and `display: none`, but `coveo-search.js` no longer removes the `hidden` attribute.                |
-| `search-result-description`     | `raw.description \|\| result.excerpt`                                                                                                                                                         |
-| `search-result-collection-row`  | Hidden (via `hidden` attribute) when `raw.collectionname` is absent/empty or the literal `"none"`, or when `raw.collectionurl` is absent — all three conditions must pass for the row to show |
-| `search-result-collection`      | `raw.collectionname` — human-readable collection name set as the link text                                                                                                                    |
-| `search-result-collection-link` | `raw.collectionurl` — set as `href`; `raw.collectionname` is the link text. Row is hidden (not this element) when either field is absent or `"none"`.                                         |
-| `search-result-doctype`         | `raw.resourcedoctype` (rendered as a tag `<span>`)                                                                                                                                            |
-| `search-result-last-updated`    | `raw.resourceupdated` — formatted by `formatDate()` as `D\u00a0MMMM YYYY` (e.g. `5 March 2026`); non-breaking space prevents day/month line-break                                             |
+| `data-ref` value                | Coveo API field                                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search-result-link`            | `raw.asseturl \|\| result.clickUri` — set as `href`                                                                                                                                                                 |
+| `search-result-title`           | `raw.resourcefriendlytitle \|\| result.title` with `formatFileMeta()` suffix appended — e.g. `"My Document (PDF 354.2 KB)"`, `"My Document (DOCX)"`, or `"My Document (58.5 KB)"` when type/size fields are present |
+| `search-result-extlink`         | **Unused — icon is permanently hidden.** The SVG is present in the template with `hidden` and `display: none`, but `coveo-search.js` no longer removes the `hidden` attribute.                                      |
+| `search-result-description`     | `raw.description \|\| result.excerpt`                                                                                                                                                                               |
+| `search-result-collection-row`  | Hidden (via `hidden` attribute) when `raw.collectionname` is absent/empty or the literal `"none"`, or when `raw.collectionurl` is absent — all three conditions must pass for the row to show                       |
+| `search-result-collection`      | `raw.collectionname` — human-readable collection name set as the link text                                                                                                                                          |
+| `search-result-collection-link` | `raw.collectionurl` — set as `href`; `raw.collectionname` is the link text. Row is hidden (not this element) when either field is absent or `"none"`.                                                               |
+| `search-result-doctype`         | `raw.resourcedoctype` (rendered as a tag `<span>`)                                                                                                                                                                  |
+| `search-result-last-updated`    | `raw.resourceupdated` — formatted by `formatDate()` as `D\u00a0MMMM YYYY` (e.g. `5 March 2026`); non-breaking space prevents day/month line-break                                                                   |
+| `search-result-page-row`        | Page row container `<div>` — hidden by default; unhidden when `raw.assetassetid` is present, then re-hidden if upstream link resolution finds no pages                                                              |
+| `search-result-page-label`      | `<span>` containing `Page:` (singular) or `Pages:` (plural) — JS changes text to `Pages:` when more than one link is resolved                                                                                       |
+| `search-result-page-ids`        | `<span>` populated with `<a>` links to resolved parent pages (comma-separated, HTML generated by `renderPageLinksHtml()`), or left empty (row hidden) when none found                                               |
+
+**Page row (card view) — upstream link resolution:**
+
+Each search result card displays a "Page:" or "Pages:" row showing which intranet pages contain the document. This is resolved at render time via the Squiz Matrix Management API (`/assets/{id}/links`).
+
+**Pages column (table view) — upstream link resolution:**
+
+Table rows display the same page links as the card view, populated asynchronously in the Pages column.
+
+**Shared resolution chain** (both card and table views use `resolvePageLinks(assetId)` and `renderPageLinksHtml(pageLinks)`):
+
+1. `fetchPageLinks(assetId)` — fetch upstream links for the document asset
+2. Filter for `link_type === "reference"` → collect `major_id` values
+3. For each reference `major_id`, fetch its links → filter for `link_type === "hidden"` entries
+4. For each hidden entry, fetch asset details via `matrixApiFetch("assets/" + hid)`
+5. If the asset has `attributes.name === "Page Contents"`, fetch `assets/{major_id - 1}` (the parent page)
+6. Extract `attributes.short_name` (falling back to `attributes.name`) and `urls[0].path` from the parent asset
+7. Filter out pages whose URL path contains "/news/", "/dev/", or "archive" (case-insensitive)
+8. Render as comma-separated `<a>` links, deduplicated by URL path
+
+**Card view** — The page row is hidden when: no `assetassetid` is present, no reference links are found, or the resolution chain yields only excluded/empty results. The label changes from "Page:" to "Pages:" when multiple links are resolved.
+
+**Table view** — The page cell initially shows "Loading…" when `raw.assetassetid` is present, then is populated with the resolved link HTML (or left empty when no pages are found). The page-link results are memoized per query and pre-fetched in the background for the full result set, so switching between card/table view, pagination, sorting, or filtering does not re-fetch the same data.
+
+**API authentication:** All Matrix Management API calls use Bearer token `eeaa62869ea5c7e751446454327cf135` via `matrixApiFetch()`.
+
+**Dev/mock mode:** When `isDev` is true (localhost, 127.0.0.1, or \*.github.io), `fetchPageLinks()` reads from `src/mock/matrix-asset-links.json` instead of calling the API. Hidden asset fetches return mock stubs.
+
+**Shared helper functions:**
+
+- `resolvePageLinks(assetId)` — returns `Promise<Array<{name, path}>>`. Encapsulates the full upstream-link resolution chain, including the /news/, /dev/, archive exclusion filter and deduplication. Results are memoized in `pageLinksCache` for the lifetime of the current query, so repeated card/table renders reuse the same Promise and do not re-fetch the same asset links. In production, resolved page-link arrays are also persisted to `localStorage` under `dcdd-page-links:<assetId>`, so repeated page loads can serve cached page links without additional Matrix API fetches. Dev mode skips localStorage persistence and continues to use the static mock JSON cache.
+- `renderPageLinksHtml(pageLinks)` — returns comma-separated HTML `<a>` string (or empty string when input is empty). Uses jQuery for HTML escaping to prevent XSS. Called by both render functions after `resolvePageLinks()` resolves.
+- `prefetchPageLinks(originalResults)` — starts background resolution for every unique `raw.assetassetid` in the search result set once the Coveo response arrives. This pre-warms the cache so pagination, sorting, filtering, and view toggles can show previously fetched page links instantly.
 
 **`data-category` attribute:** Both card `<li>` elements (`renderCardResults()`) and table `<tr>` elements (`renderTableResults()`) carry a `data-category` attribute containing `raw.category` (empty string when absent). No visual display — this is a hidden data marker for DOM-level querying consistent with category filter values.
 
@@ -762,6 +814,8 @@ The results area. Deployed as a separate Matrix nested container. Contains:
 
 `src/css/search-widget.css` compiles to `dist/search-page.css`. It imports `src/css/tokens.css` at the top (`@import "./tokens.css";`) — do not re-declare `:root` inside this file. All design tokens live in `tokens.css` (see the [CSS Token System](#css-token-system) section above).
 
+The document title suffix is rendered as `FILETYPE (filesize)` and is wrapped in a separate `.doc-search-result__file-meta` span. It inherits all styles from the parent `.doc-search-result__title-link` (font size, weight, colour, underline, and hover/focus colour) so it appears visually uniform with the title text. Spacing between the title text and the file meta is provided by the parent's `gap: 6px` flex gap — no extra margin is applied to `.doc-search-result__file-meta`.
+
 ### Internal card spacing
 
 Spacing values inside the widget are written as direct pixel values (not token variables) in the class rules:
@@ -797,6 +851,7 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-outer`                             | Outer section wrapper — shaded bg; `padding: 48px 0` on desktop; `padding-top: 16px` on mobile (≤ 900 px)                                                                                                                                                                                                   |
 | `.doc-search-layout`                            | Two-column flex (results col + sidebar)                                                                                                                                                                                                                                                                     |
 | `.doc-search-results-col`                       | Results column; `[data-view="table"]` activates table mode                                                                                                                                                                                                                                                  |
+| `.ntgc-callout` (inside `.doc-search-results-col`) | Governance contact callout — always visible above the results summary; background `#F5F5F7`, border-left `#102040`, `padding: 16px`, `line-height: 1.3`, `max-width: none`; overrides applied via `.doc-search-results-col .ntgc-callout` in `search-widget.css` with `!important` |
 | `.doc-search-results-header`                    | Bar above results — summary text + controls                                                                                                                                                                                                                                                                 |
 | `.doc-search-results-summary`                   | "Showing X–Y of N results" `<p>`                                                                                                                                                                                                                                                                            |
 | `.doc-search-results-controls`                  | Flex row — view toggle button (sort has moved to the filter sidebar)                                                                                                                                                                                                                                        |
@@ -808,12 +863,17 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-user-message`                      | Error / empty-state message; `padding: 0` (no vertical padding)                                                                                                                                                                                                                                             |
 | `.doc-search-results-list`                      | Card results `<ul>`                                                                                                                                                                                                                                                                                         |
 | `.doc-search-result`                            | Single result card `<li>`                                                                                                                                                                                                                                                                                   |
-| `.doc-search-result__title-link`                | Card title `<a>` — `display: flex` (block-level) so the following `<p>` sits flush below with no browser-default paragraph margin-top                                                                                                                                                                       |
+| `.doc-search-result__title-link`                | Card title `<a>` — `display: flex` (block-level) so the following `<p>` sits flush below with no browser-default paragraph margin-top; `gap: 6px` spaces the title text from the file-meta suffix                                                                                                           |
+| `.doc-search-result__title-text`                | `<span>` wrapping the document title text — `text-decoration: underline`; underline removed on hover/focus                                                                                                                                                                                                  |
+| `.doc-search-result__file-meta`                 | `<span>` wrapping the `FILETYPE (filesize)` suffix — inherits all styles from `.doc-search-result__title-link`; `text-decoration: underline` matches `.doc-search-result__title-text`; underline removed on hover/focus. Style overrides are present but commented out in `search-widget.css`.              |
 | `.doc-search-result__ext-icon`                  | Inline SVG external-link icon — **permanently hidden** via `display: none`. Present in the HTML template but suppressed. See _External link detection_ note above.                                                                                                                                          |
 | `.doc-search-result__description`               | Excerpt/description `<p>` — `margin: 12px 0 12px !important` overrides browser `<p>` default top margin                                                                                                                                                                                                     |
 | `.doc-search-result__collection-row`            | "Collection: …" row                                                                                                                                                                                                                                                                                         |
 | `.doc-search-result__collection-icon`           | Inline SVG folder icon preceding "Collection:" — 12×12, `stroke="currentColor"`, `aria-hidden="true"`, vertically aligned to text baseline                                                                                                                                                                  |
 | `.doc-search-result__collection-link`           | Link to the parent collection                                                                                                                                                                                                                                                                               |
+| `.doc-search-result__page-row`                  | "Page: …" / "Pages: …" row — `font-size: var(--font-size-xs)`, `color: var(--clr-text-alt)`, `margin-bottom: 4px`; hidden by default, shown when upstream page links are resolved                                                                                                                           |
+| `.doc-search-result__page-row a`                | Page link `<a>` inside the page row — `color: var(--clr-tertiary)`, underlined                                                                                                                                                                                                                              |
+| `.doc-search-result__page-icon`                 | Inline SVG document icon preceding "Page:" — 16×16, `stroke="currentColor"`, `aria-hidden="true"`, vertically aligned to text baseline                                                                                                                                                                      |
 | `.doc-search-result__meta`                      | Flex row — doctype tag + last-updated date                                                                                                                                                                                                                                                                  |
 | `.doc-search-result__tag`                       | Document type tag `<span>` (e.g. "Policy") — `display: inline-flex`, `outline: 1px solid var(--clr-border-subtle)` (not `border`), **no `border-radius`**, 12px/700 uppercase Roboto                                                                                                                        |
 | `.doc-search-result__updated`                   | Last-updated date wrapper `<div>` — contains literal text `Last updated:` and an inner `<span [data-ref="search-result-last-updated"]>` with the formatted date (card view only; table view renders plain text directly in `<td>`)                                                                          |
@@ -903,11 +963,11 @@ Google Analytics 4 via Google Tag Manager. Tag ID: `G-WY2GK59DRN`. GTM is loaded
 
 - **VPN required for production search.** The Coveo endpoint (`https://internal.nt.gov.au/...`) is only reachable on the NTG network. `coveo-search.js` automatically falls back to the mock JSON when `hostname` is `localhost` or `127.0.0.1`. Do not use a `?a=<assetId>` Matrix shorthand URL — it resolves to an HTML page, not JSON.
 
-- **Mock data is static.** `src/mock/coveo-search-rest-api-query.json` always returns the same 43 results regardless of the query string. It is a snapshot used purely to exercise the rendering pipeline locally.
+- **Mock data is static.** `src/mock/coveo-search-rest-api-query.json` always returns the same 36 results regardless of the query string. It is a snapshot used purely to exercise the rendering pipeline locally.
 
-- **Sort is client-side; filters are preserved on sort change.** Changing the sort radio buttons (`input[name="doc-search-sort"]` in the sidebar, or `input[name="doc-search-drawer-sort"]` in the mobile drawer) calls `applySort()` then `applyFilters()` — no API call, no filter reset. `originalResults` always holds the unmodified API response so "Relevance" can restore it cheaply. The mobile drawer has its own radio group that mirrors the sidebar state; the "Apply filters" button syncs the drawer selection back to the sidebar before firing.
+- **Sort is client-side; filters are preserved on sort change.** Changing the sort dropdown (`select[name="doc-search-sort"]` in the sidebar, or `select[name="doc-search-drawer-sort"]` in the mobile drawer) calls `applySort()` then `applyFilters()` — no API call, no filter reset. `originalResults` always holds the unmodified API response so "Relevance" can restore it cheaply. The mobile drawer has its own select that mirrors the sidebar state; the "Apply filters" button syncs the drawer selection back to the sidebar before firing.
 
-- **Mobile filter drawer.** On screens ≤ 900 px the filter sidebar is hidden and replaced by a "Filters" pill button (`#doc-search-mobile-filter-btn`). Tapping it opens a slide-in drawer (`#doc-search-drawer`, `position: fixed`, slides from the right) with the full sort + facet UI duplicated. The drawer has its own sort radio group (`name="doc-search-drawer-sort"`) and its own Type/Category checkbox lists. On "Apply filters" (`#doc-search-drawer-apply`), `coveo-search.js` reads the drawer sort selection, syncs it to the sidebar radios, reads the drawer checkboxes, syncs them to the sidebar checkboxes, then calls `applySort()` + `applyFilters()`. On "Clear all filters" (`#doc-search-drawer-clear`), sort resets to `relevancy` and all checkboxes are unchecked (in both drawer and sidebar). The overlay and close button both fire the same close routine.
+- **Mobile filter drawer.** On screens ≤ 900 px the filter sidebar is hidden and replaced by a "Filters" pill button (`#doc-search-mobile-filter-btn`). Tapping it opens a slide-in drawer (`#doc-search-drawer`, `position: fixed`, slides from the right) with the full sort + facet UI duplicated. The drawer has its own sort dropdown (`name="doc-search-drawer-sort"`) and its own Type/Category checkbox lists. On "Apply filters" (`#doc-search-drawer-apply`), `coveo-search.js` reads the drawer sort selection, syncs it to the sidebar select, reads the drawer checkboxes, syncs them to the sidebar checkboxes, then calls `applySort()` + `applyFilters()`. On "Clear all filters" (`#doc-search-drawer-clear`), sort resets to `relevancy` and all checkboxes are unchecked (in both drawer and sidebar). The overlay and close button both fire the same close routine.
 
   **Active filter counter on the button:** After every `applyFilters()` call, `updateMobileFilterCount()` is called automatically (it is the last line in `applyFilters()`). It computes `activeTypeFilters.size + activeCategoryFilters.size` and sets `#doc-search-filter-count`'s text to `(N)` when N > 0, or `""` when no filters are active — producing "Filters (3)" or just "Filters". This covers all code paths that change filter state: sidebar checkbox changes, drawer "Apply filters", and any future callers of `applyFilters()`.
 
@@ -945,7 +1005,7 @@ Google Analytics 4 via Google Tag Manager. Tag ID: `G-WY2GK59DRN`. GTM is loaded
 
 - **`index.html` and `collection/*.html` are generated files — do not edit them manually.** They are produced by `scripts/generate-collection-pages.js` as the third step of `npm run build`. Any manual edits will be overwritten on the next build. To change the structure, layout, or content of the GitHub Pages static pages, edit the generator script or its template sources (`search-section-preview.html`, `collection-page-preview.html`, `src/mock/coveo-search-rest-api-query.json`).
 
-- **`localiseCollectionUrl()` rewrites collection links on GitHub Pages.** On `localhost`, `127.0.0.1`, or any `*.github.io` hostname, the `localiseCollectionUrl()` function in `coveo-search.js` intercepts the `raw.collectionurl` field before it is set as a link `href`. It extracts the slug from the intranet URL (e.g. `gifts-and-benefits`) and returns `collection/gifts-and-benefits.html` instead. This is applied in `renderCardResults()` and `renderTableResults()`. On the production intranet the function is a no-op (returns the URL unchanged) because `isDev` is `false`.
+- **`buildCollectionUrl()` constructs collection links with text fragment markup.** This function in `coveo-search.js` calls `localiseCollectionUrl()` to rewrite intranet URLs to local relative paths on GitHub Pages (and localhost), then appends a [text fragment](https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments) derived from `formatFileMeta(raw)` — e.g. `#:~:text=DOCX%20(612.4%20KB)`. When the user clicks a "Collection:" link, the browser scrolls to and highlights the matching document on the collection page. The fragment is omitted when the document has no file-type or size metadata. `localiseCollectionUrl()` remains the underlying URL-rewrite helper; `buildCollectionUrl()` is the call site used in `renderCardResults()`.
 
 - **`.nojekyll` must remain in the repository root.** GitHub Pages will silently drop directories whose names begin with `_` (including `dist/`) if Jekyll processing is enabled. The `.nojekyll` file disables Jekyll. It is an empty file — its presence is all that matters. If GitHub Pages ever stops serving `dist/` or `src/`, check that `.nojekyll` is present and tracked in git.
 

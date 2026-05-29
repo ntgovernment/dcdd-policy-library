@@ -10,6 +10,11 @@
  *                            collection-page-preview.html + Coveo mock data.
  *
  * Run automatically as part of `npm run build`.
+ *
+ * Documents with raw.resourcedoctype === EXCLUDED_DOCTYPE ("Supporting document")
+ * are filtered out during the collection map build step and do not appear on any
+ * generated collection page. This mirrors the same exclusion applied at runtime
+ * in coveo-search.js.
  */
 "use strict";
 
@@ -142,9 +147,15 @@ var mockData = JSON.parse(
  */
 var collections = new Map();
 
+var EXCLUDED_DOCTYPE = "Supporting document";
+
 for (var i = 0; i < mockData.results.length; i++) {
   var result = mockData.results[i];
   var raw = result.raw || {};
+
+  // Skip supporting documents — excluded from both search results and collection pages
+  if ((raw.resourcedoctype || "").trim() === EXCLUDED_DOCTYPE) continue;
+
   var name = (raw.collectionname || "").trim();
   var url = (raw.collectionurl || "").trim();
 
@@ -220,9 +231,9 @@ function buildDocumentsHtml(results) {
       var size = (r.resourcefilesize || "").trim();
       var meta =
         tlabel && size
-          ? " (" + tlabel + ", " + size + ")"
+          ? " " + tlabel + " (" + size + ")"
           : tlabel
-            ? " (" + tlabel + ")"
+            ? " " + tlabel
             : size
               ? " (" + size + ")"
               : "";

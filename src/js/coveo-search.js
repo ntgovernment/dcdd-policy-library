@@ -6,6 +6,11 @@
  * request, then performs client-side filtering, sorting, and pagination.
  * Results are rendered by cloning a hidden .search-template element.
  *
+ * Results with raw.resourcedoctype === "Supporting document" are hard-excluded:
+ * they are filtered out of every result array (originalResults, masterResults) at
+ * API response ingestion time and never appear in search results, pagination
+ * counts, or facet filter lists. Change EXCLUDED_DOCTYPE to adjust this.
+ *
  * The Type and Category filter sidebars always show the complete list of values
  * from the full document corpus (masterResults), regardless of the active search
  * query. Only the count numbers beside each value change. Values with a count of
@@ -21,6 +26,20 @@
  * Dev/local:   /src/mock/coveo-search-rest-api-query.json  (static fixture)
  *
  * Dev detection: window.location.hostname is "localhost" or "127.0.0.1"
+ *
+ * ── SQUIZ MATRIX MANAGEMENT API (page links) ────────────────────────────────
+ * Each search result has a raw.assetassetid field (the Squiz Matrix asset ID
+ * of the document). For card results, the script fetches upstream link
+ * relationships from the Squiz Matrix Management API to determine which pages
+ * reference the document:
+ *   Production:  GET https://internal.nt.gov.au/__management_api/v1/assets/{assetId}/links?direction=up
+ *   Dev/local:   /src/mock/matrix-asset-links.json  (static fixture keyed by assetId)
+ * Authorization: Bearer token (MATRIX_API_TOKEN constant).
+ * The response is an array of link objects; only entries with
+ * link_type === "reference" are displayed. Their major_id values are shown
+ * comma-separated in the "Page:" row on each card.
+ * Fetches are non-blocking — cards render immediately with "Loading…" text
+ * in the Page row; the row is hidden if no reference links exist.
  *
  * Sorting is performed client-side after the full result set is received:
  *   applySort() is called after every fetch and after every sort radio button change.
@@ -39,14 +58,20 @@
  * result.raw.asseturl                 — primary document URL
  * result.raw.description              — card description (falls back to result.excerpt)
  * result.raw.resourcedoctype          — "Type" facet value and tag label
- * result.raw.category                 — "Category" facet value; used as filter key and stored as data-category
- *                                       attribute on rendered card <li> and table <tr> elements
+ * result.raw.category                 — "Category" facet value(s). Coveo maps multiple <meta name="category">
+ *                                       tags as a single comma-separated string (e.g. "Protocols, Governance and
+ *                                       accountability"). splitFieldValues() is used throughout to split on ","
+ *                                       so each token is treated as an independent category. The raw string is
+ *                                       stored as the data-category attribute on rendered card <li> and table <tr>
+ *                                       elements; filtering matches any token against activeCategoryFilters.
  * result.raw.collectionname           — human-readable collection name; used as display text in card and table views
  * result.raw.collectionassetid        — Squiz asset ID for the collection (not used in rendering)
  * result.raw.collectionurl            — direct collection URL; used as href in both card and table view
  * result.raw.resourceupdated          — last-updated date (YYYY-MM-DD HH:mm:ss)
  * result.raw.resourcetype             — file type key (e.g. "pdf_file", "word_doc"); mapped to uppercase label
  * result.raw.resourcefilesize         — human-readable file size (e.g. "354.2 KB")
+ * result.raw.assetassetid              — Squiz Matrix asset ID; used to fetch upstream
+ *                                        page links from the Matrix Management API
  *
  * ── DOM CONTRACT ─────────────────────────────────────────────────────────────
  * IDs and attributes that must exist in the page HTML:
@@ -59,7 +84,7 @@
  *   #doc-search-table-body        <tbody> populated with table rows
  *   #doc-search-results-summary   receives "Showing X–Y of Z results" text
  *   #doc-search-pagination        receives prev/page-number/next buttons
- *   input[name="doc-search-sort"] radio group; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
+ *   select[name="doc-search-sort"] dropdown; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   #doc-search-view-toggle       button; aria-pressed="true" = table view active
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
  *   #doc-search-category-filters  <ul> receives Category facet checkboxes
@@ -72,12 +97,23 @@
  *                                                e.g. "My Document (PDF 354.2 KB)"
  *   [data-ref="search-result-extlink"]         external-link icon — permanently hidden (display:none in CSS; JS does not remove hidden attr)
  *   [data-ref="search-result-description"]     description / excerpt text
+ *   [data-ref="search-result-page-row"]         entire row hidden when no reference page links;
+ *                                               contains a 16×16 document icon SVG
+ *                                               (.doc-search-result__page-icon) and a text span.
+ *                                               Populated asynchronously after card render.
+ *   [data-ref="search-result-page-ids"]         comma-separated <a> links to parent intranet pages,
+ *                                               each with a text fragment appended so the browser
+ *                                               scrolls to and highlights the matching document:
+ *                                               e.g. …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
  *   [data-ref="search-result-collection-row"]  entire row hidden when no collection; contains a static
  *                                               16×16 folder icon SVG (.doc-search-result__collection-icon)
  *                                               positioned 3px above the text baseline (top: -3px) with a
  *                                               2px right margin; JS does not modify the icon element
  *   [data-ref="search-result-collection"]      collection name text (raw.collectionname)
- *   [data-ref="search-result-collection-link"] <a> href = raw.collectionurl
+ *   [data-ref="search-result-collection-link"] <a> href = buildCollectionUrl(raw.collectionurl, raw)
+ *                                               — localised URL with a text fragment appended so the
+ *                                               browser scrolls to and highlights the matching document:
+ *                                               e.g. …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
  *   [data-ref="search-result-doctype"]         doctype badge text
  *   [data-ref="search-result-last-updated"]    formatted last-updated date
  *
@@ -86,9 +122,13 @@
  *                                        title text includes formatFileMeta() suffix
  *   .doc-search-table__col-updated     last-updated plain text
  *   .doc-search-table__col-type        doctype — <span class="doc-search-table__tag"> or empty
- *   .doc-search-table__col-collection  collection — <a class="doc-search-table__collection-link">
- *                                        href = raw.collectionurl
- *                                        text = raw.collectionname
+ *   .doc-search-table__col-collection  pages — comma-separated <a> links to parent intranet
+ *                                        pages, resolved asynchronously from the Squiz Matrix
+ *                                        Management API (same chain as the card view's page row).
+ *                                        Initially shows "Loading\u2026" when raw.assetassetid is
+ *                                        present; populated empty when no pages are resolved or
+ *                                        when raw.assetassetid is absent. Pages whose URL path
+ *                                        contains "/news/", "/dev/", or "archive" are excluded.
  *
  * Facet items (built by buildFacet into #doc-search-type-filters / #doc-search-category-filters):
  *   input[data-facet][data-value]       checkbox; data-facet = raw field name, data-value = raw value
@@ -100,13 +140,16 @@
  *
  * ── URL PARAMETERS READ ON INIT ──────────────────────────────────────────────
  *   ?searchterm=<string>  pre-fills #search and immediately runs a search
- *   ?sort=<string>        pre-selects sort; must match a radio input value:
+ *   ?sort=<string>        pre-selects sort; must match a select option value:
  *                           "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *
  * ── KEY CONSTANTS ────────────────────────────────────────────────────────────
  *   RESULTS_PER_PAGE_CARD   10      — cards shown per page
  *   RESULTS_PER_PAGE_TABLE  15      — rows shown per page in table view
  *   MAX_FACET_VISIBLE        7      — facet items visible before "Show all"
+ *   MATRIX_API_BASE         String  — Squiz Matrix Management API base URL
+ *   MATRIX_API_TOKEN        String  — Bearer token for the Management API
+ *   MATRIX_MOCK_URL         String  — local mock JSON for dev page-link lookups
  *   FILE_TYPE_LABELS        Object  — maps raw.resourcetype keys to uppercase display labels
  *                                     (e.g. "pdf_file" → "PDF", "word_doc" → "DOCX")
  *                                     Add entries here to support additional file types.
@@ -114,29 +157,35 @@
  * ── TITLE COMPOSITION ────────────────────────────────────────────────────────
  * Card and table titles are both composed as:
  *   (raw.resourcefriendlytitle || result.title) + formatFileMeta(raw)
- * formatFileMeta() appends a parenthetical suffix when raw.resourcetype and/or
+ * formatFileMeta() appends a suffix when raw.resourcetype and/or
  * raw.resourcefilesize are present — for example:
- *   "My Document (PDF 354.2 KB)"    — both type and size present
- *   "My Document (DOCX)"            — type only (size absent)
+ *   "My Document PDF (354.2 KB)"    — both type and size present
+ *   "My Document DOCX"              — type only (size absent)
  *   "My Document (58.5 KB)"         — size only (type unmapped or absent)
  *   "My Document"                   — neither present
  * To add a new file type mapping, add an entry to FILE_TYPE_LABELS.
  *
  * ── MODULE STATE ─────────────────────────────────────────────────────────────
- *   masterResults         Array   — complete document corpus (all results for an empty query);
- *                                   populated once on the first runSearch() call and never cleared.
- *                                   Provides the stable value list for all facets so that Type and
- *                                   Category options do not disappear when a search query narrows
- *                                   the result set.
+ *   EXCLUDED_DOCTYPE      String  — resourcedoctype value hard-excluded from all result arrays
+ *                                   ("Supporting document"). Documents with this type are stripped
+ *                                   from originalResults and masterResults at ingestion time.
+ *   masterResults         Array   — complete document corpus (all results for an empty query),
+ *                                   excluding EXCLUDED_DOCTYPE documents. Populated once on the
+ *                                   first runSearch() call and never cleared. Provides the stable
+ *                                   value list for all facets so that Type and Category options
+ *                                   do not disappear when a search query narrows the result set.
  *   originalResults       Array   — raw API response order for the current query;
  *                                   restored as allResults when sort = "relevancy"
  *   allResults            Array   — current display order (sorted copy of originalResults)
  *   filteredResults       Array   — subset of allResults after checkbox filters applied
  *   currentPage           Number  — active pagination page (1-based)
  *   activeTypeFilters     Set     — checked "Type" facet values (raw.resourcedoctype)
- *   activeCategoryFilters Set     — checked "Category" facet values (raw.category)
+ *   activeCategoryFilters Set     — checked "Category" facet values; each entry is a single trimmed token
+ *                                   derived from splitting raw.category on "," via splitFieldValues()
  *   currentSort           String  — "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   currentQuery          String  — last query string passed to runSearch()
+ *   matrixMockCache       Object  — cached contents of matrix-asset-links.json (dev mode only;
+ *                                   populated on first fetchPageLinks() call, null until then)
  *
  * ── SEARCH FLOW ──────────────────────────────────────────────────────────────
  * On form submit: the handler redirects to
@@ -187,6 +236,363 @@
     "https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query";
   var MOCK_URL = "./src/mock/coveo-search-rest-api-query.json";
 
+  // ── Squiz Matrix Management API (page-link lookups) ──────────────────────────
+  var MATRIX_API_BASE = "https://internal.nt.gov.au/__management_api/v1/";
+  var MATRIX_API_TOKEN = "eeaa62869ea5c7e751446454327cf135";
+  var MATRIX_MOCK_URL = "./src/mock/matrix-asset-links.json";
+  var matrixMockCache = null;
+
+  // Per-page-load cache of resolved page-link Promises, keyed by assetId.
+  // Both card and table renders call resolvePageLinks(assetId), which returns
+  // the cached Promise on subsequent calls — so pagination, sorting, filtering,
+  // and switching between card/table view never re-fetch the same data.
+  // Cleared at the start of every runSearch() to avoid stale data across queries.
+  var pageLinksCache = {};
+
+  // localStorage key prefix for persisting resolved page-link arrays across
+  // page loads. Each value is a JSON-stringified Array<{name, path}>.
+  var PAGE_LINKS_STORAGE_PREFIX = "dcdd-page-links:";
+
+  /**
+   * Reads a previously resolved page-link array for an assetId from
+   * localStorage. Returns null when no entry exists, when localStorage is
+   * unavailable (e.g. private browsing), or when the stored value is invalid.
+   * @param {string} assetId
+   * @returns {Array<{name: string, path: string}>|null}
+   */
+  function loadPageLinksFromStorage(assetId) {
+    try {
+      var raw = window.localStorage.getItem(
+        PAGE_LINKS_STORAGE_PREFIX + assetId,
+      );
+      if (raw == null) return null;
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Persists a resolved page-link array for an assetId to localStorage.
+   * Silently no-ops when localStorage is unavailable or the quota is exceeded.
+   * @param {string} assetId
+   * @param {Array<{name: string, path: string}>} pageLinks
+   */
+  function savePageLinksToStorage(assetId, pageLinks) {
+    try {
+      window.localStorage.setItem(
+        PAGE_LINKS_STORAGE_PREFIX + assetId,
+        JSON.stringify(pageLinks),
+      );
+    } catch (e) {
+      /* localStorage disabled or full — skip persistence */
+    }
+  }
+
+  /**
+   * Fetch wrapper for the Squiz Matrix Management API.
+   * Sets the Authorization header with the bearer token.
+   * @param {string} path  Relative path appended to MATRIX_API_BASE.
+   * @returns {Promise<*>}
+   */
+  function matrixApiFetch(path) {
+    return fetch(MATRIX_API_BASE + path, {
+      headers: {
+        Authorization: "Bearer " + MATRIX_API_TOKEN,
+        "Content-Type": "application/json",
+      },
+    }).then(function (response) {
+      if (!response.ok)
+        throw new Error(response.status + " " + response.statusText);
+      return response.json();
+    });
+  }
+
+  /**
+   * Fetches upstream link relationships for an asset.
+   * In dev mode reads from the static mock JSON (keyed by assetId).
+   * In production calls GET assets/{assetId}/links?direction=up.
+   * @param {string} assetId  The Squiz Matrix asset ID (raw.assetassetid).
+   * @returns {Promise<Array>}  Array of link objects.
+   */
+  function fetchPageLinks(assetId) {
+    if (isDev) {
+      if (matrixMockCache) {
+        return Promise.resolve(matrixMockCache[assetId] || []);
+      }
+      return fetch(MATRIX_MOCK_URL)
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          matrixMockCache = data;
+          return data[assetId] || [];
+        })
+        .catch(function () {
+          return [];
+        });
+    }
+    return matrixApiFetch("assets/" + assetId + "/links?direction=up")
+      .then(function (data) {
+        return Array.isArray(data) ? data : [];
+      })
+      .catch(function () {
+        return [];
+      });
+  }
+
+  /**
+   * Filters a links array for "reference" link_type entries and returns
+   * an array of their major_id values.
+   * @param {Array} links  Array of link objects from the Matrix API.
+   * @returns {string[]}   major_id values for reference links.
+   */
+  function getPageMajorIds(links) {
+    return links
+      .filter(function (l) {
+        return l.link_type === "reference";
+      })
+      .map(function (l) {
+        return l.major_id;
+      });
+  }
+
+  /**
+   * For each reference major_id, fetches its upstream links and returns
+   * the major_id values of any "menu" links found. This resolves the
+   * reference intermediary to the actual parent page.
+   * @param {string[]} refMajorIds  major_id values from reference links.
+   * @returns {Promise<string[]>}   Deduplicated major_id values from menu links.
+   */
+  function resolveMenuParents(refMajorIds) {
+    return Promise.all(
+      refMajorIds.map(function (id) {
+        return fetchPageLinks(id).then(function (links) {
+          return links
+            .filter(function (l) {
+              return l.link_type === "menu";
+            })
+            .map(function (l) {
+              return l.major_id;
+            });
+        });
+      }),
+    ).then(function (arrays) {
+      var seen = {};
+      var result = [];
+      arrays.forEach(function (ids) {
+        ids.forEach(function (id) {
+          if (!seen[id]) {
+            seen[id] = true;
+            result.push(id);
+          }
+        });
+      });
+      return result;
+    });
+  }
+
+  /**
+   * Resolves the full chain of upstream page links for a document asset and
+   * returns a deduplicated, filtered list of {name, path} objects suitable for
+   * rendering as <a> tags. Pages whose URL path contains "/news/", "/dev/", or
+   * "archive" (case-insensitive) are excluded.
+   *
+   * Results are memoized in `pageLinksCache` for the lifetime of the page load.
+   * Concurrent calls for the same assetId share the same in-flight Promise, so
+   * pagination, sorting, filtering, and view switching never trigger a re-fetch.
+   * The cache is reset at the start of every runSearch() call.
+   *
+   * Resolution chain:
+   *   1. fetchPageLinks(assetId)            → upstream links
+   *   2. filter link_type === "reference"   → refMajorIds
+   *   3. fetchPageLinks(ref) for each ref   → childLinks; filter "hidden" ids
+   *   4. matrixApiFetch("assets/{hid}")     → hidden asset details
+   *   5. attributes.name === "Page Contents"→ fetch parent (major_id - 1)
+   *   6. extract attributes.short_name (or name) and urls[0].path
+   *
+   * @param {string} assetId  raw.assetassetid for the document.
+   * @returns {Promise<Array<{name: string, path: string}>>}
+   */
+  function resolvePageLinks(assetId) {
+    if (!assetId) return Promise.resolve([]);
+    if (pageLinksCache[assetId]) return pageLinksCache[assetId];
+
+    // localStorage hit (production only — in dev the static mock JSON is
+    // already cached in memory by fetchPageLinks(), so persisting it adds
+    // no benefit and would clutter the developer's storage).
+    if (!isDev) {
+      var stored = loadPageLinksFromStorage(assetId);
+      if (stored) {
+        var resolvedPromise = Promise.resolve(stored);
+        pageLinksCache[assetId] = resolvedPromise;
+        return resolvedPromise;
+      }
+    }
+
+    var promise = resolvePageLinksUncached(assetId).then(function (pageLinks) {
+      if (!isDev) savePageLinksToStorage(assetId, pageLinks);
+      return pageLinks;
+    });
+    pageLinksCache[assetId] = promise;
+    return promise;
+  }
+
+  /**
+   * Pre-warms the page-links cache for every result in `results` by kicking
+   * off a `resolvePageLinks()` call for each unique `raw.assetassetid`. All
+   * fetches run in parallel in the background; subsequent calls from
+   * renderCardResults() / renderTableResults() reuse the cached Promises
+   * (and most will already be resolved by the time the user paginates,
+   * sorts, filters, or switches view).
+   *
+   * @param {Array} results  Coveo result objects (e.g. originalResults).
+   */
+  function prefetchPageLinks(results) {
+    if (!Array.isArray(results)) return;
+    results.forEach(function (r) {
+      var id = (r.raw || {}).assetassetid;
+      if (id && !pageLinksCache[id]) {
+        // Fire and forget — the call populates the cache via resolvePageLinks().
+        resolvePageLinks(id);
+      }
+    });
+  }
+
+  /**
+   * Internal: performs the actual upstream-link resolution chain.
+   * Use resolvePageLinks() instead, which adds caching.
+   * @param {string} assetId
+   * @returns {Promise<Array<{name: string, path: string}>>}
+   */
+  function resolvePageLinksUncached(assetId) {
+    return fetchPageLinks(assetId).then(function (links) {
+      var refIds = getPageMajorIds(links);
+      if (!refIds.length) return [];
+      return Promise.all(
+        refIds.map(function (id) {
+          return fetchPageLinks(id).then(function (childLinks) {
+            var hiddenIds = childLinks
+              .filter(function (l) {
+                return l.link_type === "hidden";
+              })
+              .map(function (l) {
+                return l.major_id;
+              });
+            var assetFetches = hiddenIds.length
+              ? Promise.all(
+                  hiddenIds.map(function (hid) {
+                    return (
+                      isDev
+                        ? Promise.resolve({
+                            id: hid,
+                            name: "(mock asset " + hid + ")",
+                          })
+                        : matrixApiFetch("assets/" + hid)
+                    )
+                      .then(function (asset) {
+                        return { major_id: hid, asset: asset };
+                      })
+                      .catch(function () {
+                        return { major_id: hid, asset: null };
+                      });
+                  }),
+                )
+              : Promise.resolve([]);
+            return assetFetches.then(function (assets) {
+              var pageContentAssets = assets.filter(function (a) {
+                return (
+                  a.asset &&
+                  a.asset.attributes &&
+                  a.asset.attributes.name === "Page Contents"
+                );
+              });
+              var parentFetches = pageContentAssets.length
+                ? Promise.all(
+                    pageContentAssets.map(function (a) {
+                      var parentId = String(Number(a.major_id) - 1);
+                      return (
+                        isDev
+                          ? Promise.resolve({
+                              id: parentId,
+                              name: "(mock asset " + parentId + ")",
+                            })
+                          : matrixApiFetch("assets/" + parentId)
+                      )
+                        .then(function (asset) {
+                          return { major_id: parentId, asset: asset };
+                        })
+                        .catch(function () {
+                          return { major_id: parentId, asset: null };
+                        });
+                    }),
+                  )
+                : Promise.resolve([]);
+              return parentFetches.then(function (parents) {
+                return { page_contents_parents: parents };
+              });
+            });
+          });
+        }),
+      ).then(function (results) {
+        var seen = {};
+        var out = [];
+        results.forEach(function (r) {
+          (r.page_contents_parents || []).forEach(function (p) {
+            if (
+              p.asset &&
+              p.asset.attributes &&
+              p.asset.urls &&
+              p.asset.urls.length
+            ) {
+              var name =
+                p.asset.attributes.short_name || p.asset.attributes.name || "";
+              var path = p.asset.urls[0].path || "";
+              var lowerPath = path.toLowerCase();
+              var isExcluded =
+                lowerPath.indexOf("/news/") !== -1 ||
+                lowerPath.indexOf("/dev/") !== -1 ||
+                lowerPath.indexOf("archive") !== -1;
+              if (name && path && !isExcluded && !seen[path]) {
+                seen[path] = true;
+                out.push({ name: name, path: path });
+              }
+            }
+          });
+        });
+        return out;
+      });
+    });
+  }
+
+  /**
+   * Builds a comma-separated HTML string of <a> links from the resolved
+   * page-link list returned by resolvePageLinks().
+   * When fileMeta is provided (e.g. "DOCX (612.4 KB)"), a text fragment is
+   * appended to each href so the browser scrolls to and highlights the
+   * matching document on the target page:
+   *   https://internal.nt.gov.au/…/page#:~:text=DOCX%20(612.4%20KB)
+   * @param {Array<{name: string, path: string}>} pageLinks
+   * @param {string} [fileMeta]  Optional trimmed formatFileMeta() output.
+   * @returns {string}  HTML; empty string when pageLinks is empty.
+   */
+  function renderPageLinksHtml(pageLinks, fileMeta) {
+    var fragment = fileMeta ? "#:~:text=" + encodeURIComponent(fileMeta) : "";
+    return pageLinks
+      .map(function (p) {
+        return (
+          '<a href="https://' +
+          $("<span>").text(p.path).html() +
+          fragment +
+          '">' +
+          $("<span>").text(p.name).html() +
+          "</a>"
+        );
+      })
+      .join(", ");
+  }
+
   /**
    * When running on dev/GitHub Pages, rewrites an intranet collection URL
    * (https://internal.nt.gov.au/.../collections/<slug>) to a local relative
@@ -200,12 +606,29 @@
     return m ? "collection/" + m[1] + ".html" : url;
   }
 
+  /**
+   * Builds the final href for a collection page link.
+   * Localises the URL (dev only) then appends a text fragment so the browser
+   * scrolls to and highlights the matching document on the collection page.
+   * Fragment format: #:~:text=DOCX%20(612.4%20KB)
+   * @param {string} url  raw.collectionurl from the Coveo result.
+   * @param {Object} raw  result.raw — used to derive the file-meta fragment text.
+   * @returns {string}
+   */
+  function buildCollectionUrl(url, raw) {
+    var base = localiseCollectionUrl(url);
+    if (!base || base === "none") return base;
+    var fileMeta = formatFileMeta(raw).trim();
+    return fileMeta ? base + "#:~:text=" + encodeURIComponent(fileMeta) : base;
+  }
+
   var RESULTS_PER_PAGE_CARD = 10;
   var RESULTS_PER_PAGE_TABLE = 15;
   var MAX_FACET_VISIBLE = 7;
 
   // ── Module state ─────────────────────────────────────────────────────────────
   var originalResults = []; // API response order — restored when sort = relevancy
+  var EXCLUDED_DOCTYPE = "Supporting document"; // hard-excluded from all result sets and facets
   var allResults = [];
   var filteredResults = [];
   var masterResults = []; // full corpus — all documents regardless of query; used to keep facet lists stable
@@ -292,8 +715,8 @@
   function formatFileMeta(raw) {
     var ext = FILE_TYPE_LABELS[raw.resourcetype] || "";
     var size = raw.resourcefilesize || "";
-    if (ext && size) return " (" + ext + " " + size + ")";
-    if (ext) return " (" + ext + ")";
+    if (ext && size) return " " + ext + " (" + size + ")";
+    if (ext) return " " + ext;
     if (size) return " (" + size + ")";
     return "";
   }
@@ -362,18 +785,44 @@
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
+   * Multi-value fields: when a raw field value contains comma-separated tokens
+   * (e.g. raw.category = "Protocols, Governance and accountability"), splitFieldValues()
+   * is applied before counting and key extraction so each token is treated as an
+   * independent facet value. Single-value fields (e.g. resourcedoctype) are unaffected.
+   *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
    * @param {string} field        result.raw property name (e.g. "resourcedoctype", "category").
    * @param {string} containerId  jQuery selector for the target <ul> element.
    * @param {Set}    activeSet    Currently active filter values; matching checkboxes are rendered checked.
    */
+
+  /**
+   * Splits a raw field value on "," into trimmed, non-empty tokens.
+   * Fields without commas (e.g. resourcedoctype) return a single-element array,
+   * so callers work identically for both single- and multi-value fields.
+   * @param {string} val
+   * @returns {string[]}
+   */
+  function splitFieldValues(val) {
+    return val
+      ? val
+          .split(",")
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(Boolean)
+      : [];
+  }
+
   function buildFacet(results, field, containerId, activeSet) {
     // Count occurrences in the CURRENT result set (may be a filtered/searched subset)
     var counts = {};
     results.forEach(function (r) {
       var val = (r.raw || {})[field];
       if (val) {
-        counts[val] = (counts[val] || 0) + 1;
+        splitFieldValues(val).forEach(function (v) {
+          counts[v] = (counts[v] || 0) + 1;
+        });
       }
     });
 
@@ -381,7 +830,11 @@
     var masterKeys = {};
     masterResults.forEach(function (r) {
       var val = (r.raw || {})[field];
-      if (val) masterKeys[val] = true;
+      if (val) {
+        splitFieldValues(val).forEach(function (v) {
+          masterKeys[v] = true;
+        });
+      }
     });
     var keys = Object.keys(masterKeys);
 
@@ -578,7 +1031,9 @@
       }
       if (
         activeCategoryFilters.size > 0 &&
-        !activeCategoryFilters.has(raw.category)
+        !splitFieldValues(raw.category || "").some(function (v) {
+          return activeCategoryFilters.has(v);
+        })
       ) {
         return false;
       }
@@ -708,9 +1163,11 @@
       $item.find('[data-ref="search-result-link"]').attr("href", assetUrl);
       $item
         .find('[data-ref="search-result-title"]')
-        .text(
-          (raw.resourcefriendlytitle || result.title || "") +
-            formatFileMeta(raw),
+        .html(
+          '<span class="doc-search-result__title-text">' +
+            escHtml(raw.resourcefriendlytitle || result.title || "") +
+            "</span>" +
+            formatFileMetaHtml(raw),
         );
 
       // External link icon — hidden
@@ -725,7 +1182,7 @@
 
       // Collection row
       var collectionName = raw.collectionname || "";
-      var collectionUrl = localiseCollectionUrl(raw.collectionurl || "");
+      var collectionUrl = buildCollectionUrl(raw.collectionurl || "", raw);
       if (collectionName && collectionName !== "none" && collectionUrl) {
         $item
           .find('[data-ref="search-result-collection"]')
@@ -737,6 +1194,32 @@
         $item
           .find('[data-ref="search-result-collection-row"]')
           .attr("hidden", true);
+      }
+
+      // Page row — async fetch of upstream reference links
+      var assetAssetId = raw.assetassetid || "";
+      if (assetAssetId) {
+        (function ($card) {
+          var $pageRow = $card.find('[data-ref="search-result-page-row"]');
+          $pageRow.removeAttr("hidden");
+          $card
+            .find('[data-ref="search-result-page-ids"]')
+            .text("Loading\u2026");
+          resolvePageLinks(assetAssetId).then(function (pageLinks) {
+            if (!pageLinks.length) {
+              $pageRow.attr("hidden", true);
+              return;
+            }
+            if (pageLinks.length > 1) {
+              $card
+                .find('[data-ref="search-result-page-label"]')
+                .text("Pages:");
+            }
+            $card
+              .find('[data-ref="search-result-page-ids"]')
+              .html(renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()));
+          });
+        })($item);
       }
 
       // Doctype tag
@@ -768,23 +1251,14 @@
     results.forEach(function (result) {
       var raw = result.raw || {};
       var assetUrl = raw.asseturl || result.clickUri || "#";
-      var collectionName = raw.collectionname || "";
-      var collectionUrl = localiseCollectionUrl(raw.collectionurl) || "#";
-      var title =
-        (raw.resourcefriendlytitle || result.title || "") + formatFileMeta(raw);
+      var assetAssetId = raw.assetassetid || "";
+      var titleText = raw.resourcefriendlytitle || result.title || "";
       var doctype = raw.resourcedoctype || "";
       var updated = formatDate(raw.resourceupdated);
 
       var extIcon = "";
 
-      var collectionCell =
-        collectionName && collectionName !== "none"
-          ? '<a class="doc-search-table__collection-link" href="' +
-            escAttr(collectionUrl) +
-            '">' +
-            escHtml(collectionName) +
-            "</a>"
-          : "";
+      var pagesCellInitial = assetAssetId ? "Loading\u2026" : "";
 
       var $row = $(
         "<tr>" +
@@ -792,7 +1266,10 @@
           '<a class="doc-search-table__title-link" href="' +
           escAttr(assetUrl) +
           '">' +
-          escHtml(title) +
+          '<span class="doc-search-result__title-text">' +
+          escHtml(titleText) +
+          "</span>" +
+          formatFileMetaHtml(raw) +
           extIcon +
           "</a>" +
           "</td>" +
@@ -806,8 +1283,8 @@
               "</span>"
             : "") +
           "</td>" +
-          '<td class="doc-search-table__col-collection">' +
-          collectionCell +
+          '<td class="doc-search-table__col-collection doc-search-table__col-pages">' +
+          escHtml(pagesCellInitial) +
           "</td>" +
           "</tr>",
       );
@@ -818,6 +1295,15 @@
         $row.addClass("doc-search-row--entering");
       }
       $tbody.append($row);
+
+      // Async populate the Pages cell from the Squiz Matrix Management API.
+      if (assetAssetId) {
+        (function ($cell, fileMeta) {
+          resolvePageLinks(assetAssetId).then(function (pageLinks) {
+            $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
+          });
+        })($row.find(".doc-search-table__col-pages"), formatFileMeta(raw).trim());
+      }
     });
   }
 
@@ -972,6 +1458,21 @@
   }
 
   /**
+   * Returns an HTML string wrapping the formatFileMeta() suffix in a
+   * <span class="doc-search-result__file-meta"> so it can be styled smaller.
+   * Returns an empty string when there is no file type/size info.
+   * @param {Object} raw  result.raw from the Coveo API response.
+   * @returns {string}
+   */
+  function formatFileMetaHtml(raw) {
+    var plain = formatFileMeta(raw);
+    if (!plain) return "";
+    return (
+      '<span class="doc-search-result__file-meta">' + escHtml(plain) + "</span>"
+    );
+  }
+
+  /**
    * Encodes a plain string for safe use inside an HTML attribute value.
    * Extends escHtml by additionally escaping `"` (&quot;) and `'` (&#39;).
    * @param {string} str
@@ -1027,6 +1528,9 @@
     $summary.empty();
     setUserMessage("");
 
+    // Reset the page-links cache so a new query doesn't reuse stale results.
+    pageLinksCache = {};
+
     var searchUrl = isDev ? MOCK_URL : buildCoveoUrl(query);
 
     // In production, when a non-empty query is used and we don't yet have the full
@@ -1039,7 +1543,9 @@
             return res.json();
           })
           .then(function (data) {
-            masterResults = data.results || [];
+            masterResults = (data.results || []).filter(function (r) {
+              return (r.raw || {}).resourcedoctype !== EXCLUDED_DOCTYPE;
+            });
           })
           .catch(function () {
             /* non-critical — facets will fall back gracefully */
@@ -1055,12 +1561,19 @@
       .then(function (values) {
         var data = values[0];
         $spinner.addClass("d-none");
-        originalResults = data.results || [];
+        originalResults = (data.results || []).filter(function (r) {
+          return (r.raw || {}).resourcedoctype !== EXCLUDED_DOCTYPE;
+        });
 
         // In dev or when query is empty the single fetch IS the full corpus
         if (masterResults.length === 0) {
           masterResults = originalResults.slice();
         }
+
+        // Pre-warm the page-links cache in parallel for every result so card
+        // and table renders never block on a fetch and pagination/sort/filter/
+        // view-switching can read from cache instantly.
+        prefetchPageLinks(originalResults);
 
         applySort();
 
@@ -1105,10 +1618,7 @@
       "#doc-search-drawer-category-filters",
       activeCategoryFilters,
     );
-    $('input[name="doc-search-drawer-sort"][value="' + currentSort + '"]').prop(
-      "checked",
-      true,
-    );
+    $('select[name="doc-search-drawer-sort"]').val(currentSort);
   }
 
   /** Opens the mobile filter drawer. */
@@ -1157,12 +1667,9 @@
   $(document).on("click", "#doc-search-drawer-apply", function () {
     // Read sort
     var drawerSort =
-      $('input[name="doc-search-drawer-sort"]:checked').val() || "relevancy";
+      $('select[name="doc-search-drawer-sort"]').val() || "relevancy";
     currentSort = drawerSort;
-    $('input[name="doc-search-sort"][value="' + drawerSort + '"]').prop(
-      "checked",
-      true,
-    );
+    $('select[name="doc-search-sort"]').val(drawerSort);
 
     // Rebuild filter sets from drawer checkboxes
     activeTypeFilters.clear();
@@ -1189,10 +1696,7 @@
   // Clear all filters inside drawer (resets UI without applying)
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
-    $('input[name="doc-search-drawer-sort"][value="relevancy"]').prop(
-      "checked",
-      true,
-    );
+    $('select[name="doc-search-drawer-sort"]').val("relevancy");
   });
 
   // ── Event: checkbox filter change ────────────────────────────────────────────
@@ -1255,7 +1759,7 @@
   });
 
   // ── Event: sort change ───────────────────────────────────────────────────────
-  $(document).on("change", 'input[name="doc-search-sort"]', function () {
+  $(document).on("change", 'select[name="doc-search-sort"]', function () {
     currentSort = $(this).val();
     applySort();
     applyFilters();
@@ -1303,10 +1807,7 @@
 
     if (urlSort) {
       currentSort = urlSort;
-      $('input[name="doc-search-sort"][value="' + urlSort + '"]').prop(
-        "checked",
-        true,
-      );
+      $('select[name="doc-search-sort"]').val(urlSort);
     }
 
     // Pre-fill search input if present

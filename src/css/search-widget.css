@@ -102,6 +102,15 @@
   padding: 48px 0;
 }
 
+/* ── Governance contact callout ───────────────────────────────────────────── */
+.doc-search-results-col .ntgc-callout {
+  background-color: #f5f5f7 !important;
+  border-left-color: #102040 !important;
+  max-width: none !important;
+  padding: 16px !important;
+  line-height: 1.3 !important;
+}
+
 /* ── Two-column layout ────────────────────────────────────────────────────── */
 .doc-search-layout {
   display: flex;
@@ -295,15 +304,36 @@ tr.doc-search-row--moving {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
   color: var(--clr-link-default);
-  text-decoration: underline;
-  text-decoration-color: currentColor;
+  text-decoration: none;
   line-height: var(--line-height-tight);
   margin: 0 0 12px;
+}
+
+.doc-search-result__title-text,
+.doc-search-result__file-meta {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .doc-search-result__title-link:hover,
 .doc-search-result__title-link:focus {
   color: var(--clr-tertiary);
+}
+
+.doc-search-result__title-link:hover .doc-search-result__title-text,
+.doc-search-result__title-link:focus .doc-search-result__title-text,
+.doc-search-result__title-link:hover .doc-search-result__file-meta,
+.doc-search-result__title-link:focus .doc-search-result__file-meta {
+  text-decoration: none;
+}
+
+.doc-search-result__file-meta {
+  /* display: inline-block; */
+  /* font-size: var(--font-size-xs); */
+  /* font-weight: var(--font-weight-regular); */
+  /* color: var(--clr-text-alt); */
+  /* text-decoration: none !important; */
+  /* margin-left: 8px; */
 }
 
 .doc-search-result__ext-icon {
@@ -320,9 +350,7 @@ tr.doc-search-row--moving {
 
 /* Collection link row */
 .doc-search-result__collection-row {
-  font-size: var(--font-size-xs);
-  color: var(--clr-text-alt);
-  margin-bottom: 12px;
+  display: none;
 }
 
 .doc-search-result__collection-icon {
@@ -343,6 +371,29 @@ tr.doc-search-row--moving {
 
 .doc-search-result__collection-link:hover {
   color: var(--clr-tertiary);
+}
+
+/* Page link row */
+.doc-search-result__page-row {
+  font-size: var(--font-size-xs);
+  color: var(--clr-text-alt);
+  margin-bottom: 12px;
+}
+
+.doc-search-result__page-row a {
+  color: #343741;
+  text-decoration: underline;
+}
+
+.doc-search-result__page-icon {
+  vertical-align: middle;
+  margin-right: 2px;
+  position: relative;
+  top: -3px;
+}
+
+.doc-search-result__page-row[hidden] {
+  display: none;
 }
 
 /* Meta row: tag + date */
@@ -545,7 +596,7 @@ tr.doc-search-row--moving {
 }
 
 .doc-search-pagination__btn--active {
-  background: var(--clr-surface-selected);
+  background: var(--clr-text-default);
   color: var(--clr-white);
   font-weight: var(--font-weight-bold);
   cursor: default;
@@ -651,11 +702,6 @@ tr.doc-search-row--moving {
   transform: rotate(180deg); /* points up = expanded */
 }
 
-.doc-search-filter-group__toggle[aria-expanded="false"]
-  + .doc-search-sort-group {
-  display: none;
-}
-
 .doc-search-facet-list {
   list-style: none;
   margin: 0;
@@ -729,70 +775,63 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
-/* ── Sort radio group ────────────────────────────────────────────────────── */
-.doc-search-sort-group {
-  display: grid;
-  grid-template-columns: 1fr;
+/* ── Sort dropdown ───────────────────────────────────────────────────────── */
+.doc-search-filter-group--sort {
   gap: 8px;
 }
 
-.doc-search-sort-option {
+.doc-search-sort-label {
+  color: var(--clr-text-default, #102040);
+  font-size: 16px;
+  font-family: Roboto, sans-serif;
+  font-weight: var(--font-weight-bold);
+  line-height: 24px;
+}
+
+.doc-search-sort-select {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  width: 50%;
+  max-width: 350px;
+  min-height: 48px;
+  background: var(--clr-bg-default, #ffffff);
+  outline: 1px solid var(--clr-border-strong-02, #102040);
+  outline-offset: -1px;
+}
+
+.doc-search-sort-select__input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 44px 0 16px;
+  margin: 0;
+  background: transparent;
+  border: none;
+  outline: none;
   color: var(--clr-text-default, #102040);
+  font-size: 16px;
   font-family: Roboto, sans-serif;
   font-weight: var(--font-weight-regular);
   line-height: 24px;
-  position: relative;
-}
-
-.doc-search-sort-option__label {
-  font-weight: var(--font-weight-regular) !important;
-  font-size: var(--font-size-sm) !important;
-}
-
-/* Hide native radio */
-.doc-search-sort-option input[type="radio"] {
-  position: absolute;
-  opacity: 0;
-  width: 32px;
-  height: 32px;
-  margin: 0;
   cursor: pointer;
-  z-index: 1;
 }
 
-/* Custom radio indicator */
-.doc-search-sort-option__radio {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: url("data:image/svg+xml,<svg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'><circle cx='16.0007' cy='16' r='12.8' fill='white'/><path d='M16.0007 28.8C8.93068 28.8 3.20068 23.07 3.20068 16C3.20068 8.92995 8.93068 3.19995 16.0007 3.19995C23.0707 3.19995 28.8007 8.92995 28.8007 16C28.8007 23.07 23.0707 28.8 16.0007 28.8ZM16.0007 5.59995C10.2557 5.59995 5.60068 10.255 5.60068 16C5.60068 21.745 10.2557 26.4 16.0007 26.4C21.7457 26.4 26.4007 21.745 26.4007 16C26.4007 10.255 21.7457 5.59995 16.0007 5.59995Z' fill='%23102040'/></svg>")
-    center / contain no-repeat;
-  flex-shrink: 0;
-  transition: background 0.15s;
-  box-sizing: border-box;
-}
-
-/* Selected state — ring with inner dot */
-.doc-search-sort-option
-  input[type="radio"]:checked
-  ~ .doc-search-sort-option__radio {
-  border: none;
-  background: url("data:image/svg+xml,<svg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M16.0007 28.8C23.0707 28.8 28.8007 23.07 28.8007 16C28.8007 8.92995 23.0707 3.19995 16.0007 3.19995C8.93068 3.19995 3.20068 8.92995 3.20068 16C3.20068 23.07 8.93068 28.8 16.0007 28.8ZM16.0007 11.2C18.6507 11.2 20.8007 13.35 20.8007 16C20.8007 18.65 18.6507 20.8 16.0007 20.8C13.3507 20.8 11.2007 18.65 11.2007 16C11.2007 13.35 13.3507 11.2 16.0007 11.2Z' fill='%23102040'/></svg>")
-    center / contain no-repeat;
-}
-
-/* Focus ring */
-.doc-search-sort-option
-  input[type="radio"]:focus-visible
-  ~ .doc-search-sort-option__radio {
+.doc-search-sort-select__input:focus-visible {
   outline: 2px solid var(--clr-focus, #88bc88);
   outline-offset: 2px;
+}
+
+.doc-search-sort-select__chevron {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--clr-text-default, #102040);
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
