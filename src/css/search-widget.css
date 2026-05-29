@@ -102,6 +102,13 @@
   padding: 48px 0;
 }
 
+/* ── Governance contact callout ───────────────────────────────────────────── */
+.doc-search-results-col .ntgc-callout {
+  background-color: #F5F5F7 !important;
+  border-left-color: #102040 !important;
+  max-width: none !important;
+}
+
 /* ── Two-column layout ────────────────────────────────────────────────────── */
 .doc-search-layout {
   display: flex;
