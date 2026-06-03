@@ -637,6 +637,7 @@
   var activeCategoryFilters = new Set();
   var currentSort = "relevancy";
   var currentQuery = "";
+  var initialQuery = "";
   var filterAnimTimeout = null;
   var visibleResultIds = new Set();
 
@@ -1333,8 +1334,7 @@
           " of " +
           total +
           " result" +
-          (total !== 1 ? "s" : "") +
-          (initialQuery ? " for " + initialQuery : ""),
+          (total !== 1 ? "s for " + initialQuery : ""),
       );
     }
   }
@@ -1806,7 +1806,7 @@
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
     // Read initial state from URL params
-    var initialQuery = getUrlParam("searchterm") || "";
+    initialQuery = getUrlParam("searchterm") || "";
     var urlSort = getUrlParam("sort");
 
     if (urlSort) {
