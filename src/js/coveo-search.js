@@ -1334,7 +1334,8 @@
           " of " +
           total +
           " result" +
-          (total !== 1 ? "s for " + initialQuery : ""),
+          (total !== 1 ? "s" : "") +
+          (initialQuery ? " for " + initialQuery : ""),
       );
     }
   }
