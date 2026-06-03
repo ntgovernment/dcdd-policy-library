@@ -1335,7 +1335,7 @@
           total +
           " result" +
           (total !== 1 ? "s" : "") +
-          (initialQuery ? " for &quot;" + initialQuery + "&quot;" : ""),
+          (initialQuery ? " for '" + initialQuery + "'" : ""),
       );
     }
   }
