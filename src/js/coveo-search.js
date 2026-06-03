@@ -1302,7 +1302,10 @@
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
             $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
           });
-        })($row.find(".doc-search-table__col-pages"), formatFileMeta(raw).trim());
+        })(
+          $row.find(".doc-search-table__col-pages"),
+          formatFileMeta(raw).trim(),
+        );
       }
     });
   }
@@ -1330,7 +1333,8 @@
           " of " +
           total +
           " result" +
-          (total !== 1 ? "s" : ""),
+          (total !== 1 ? "s" : "") +
+          (initialQuery ? " for " + initialQuery : ""),
       );
     }
   }
