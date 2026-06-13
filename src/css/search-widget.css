@@ -834,6 +834,64 @@ tr.doc-search-row--moving {
   flex-shrink: 0;
 }
 
+/* ── Owner dropdown ───────────────────────────────────────────────────────── */
+.doc-search-filter-group--owner {
+  gap: 8px;
+}
+
+.doc-search-owner-label {
+  color: var(--clr-text-default, #102040);
+  font-size: 16px;
+  font-family: Roboto, sans-serif;
+  font-weight: var(--font-weight-bold);
+  line-height: 24px;
+}
+
+.doc-search-owner-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  background: var(--clr-bg-default, #ffffff);
+  outline: 1px solid var(--clr-border-strong-02, #102040);
+  outline-offset: -1px;
+}
+
+.doc-search-owner-select__input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 44px 0 16px;
+  margin: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--clr-text-default, #102040);
+  font-size: 16px;
+  font-family: Roboto, sans-serif;
+  font-weight: var(--font-weight-regular);
+  line-height: 24px;
+  cursor: pointer;
+}
+
+.doc-search-owner-select__input:focus-visible {
+  outline: 2px solid var(--clr-focus, #88bc88);
+  outline-offset: 2px;
+}
+
+.doc-search-owner-select__chevron {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--clr-text-default, #102040);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    MOBILE FILTER BUTTON  (hidden on desktop, shown ≤ 900 px)
    ══════════════════════════════════════════════════════════════════════════ */
