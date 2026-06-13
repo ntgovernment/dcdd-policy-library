@@ -635,8 +635,10 @@
   var currentPage = 1;
   var activeTypeFilters = new Set();
   var activeCategoryFilters = new Set();
+  var activeOwnerFilter = "";
   var currentSort = "relevancy";
   var currentQuery = "";
+  var initialQuery = "";
   var filterAnimTimeout = null;
   var visibleResultIds = new Set();
 
@@ -762,6 +764,7 @@
       "#doc-search-category-filters",
       activeCategoryFilters,
     );
+    buildDropdownFacet("resourceowner", "#doc-search-owner", activeOwnerFilter);
   }
 
   /**
@@ -898,6 +901,32 @@
     }
   }
 
+  function buildDropdownFacet(field, containerId, activeValue) {
+    var masterKeys = {};
+    masterResults.forEach(function (r) {
+      var val = (r.raw || {})[field];
+      if (val) {
+        splitFieldValues(val).forEach(function (v) {
+          masterKeys[v] = true;
+        });
+      }
+    });
+    var keys = Object.keys(masterKeys);
+    keys.sort(function (a, b) {
+      return a.localeCompare(b);
+    });
+
+    var $container = $(containerId);
+    $container.empty();
+    $container.append('<option value="">All owners</option>');
+
+    keys.forEach(function (key) {
+      var selected = (key === activeValue) ? " selected" : "";
+      var $option = $("<option value=\"" + escAttr(key) + "\"" + selected + ">" + escHtml(key) + "</option>");
+      $container.append($option);
+    });
+  }
+
   // ── Sort ────────────────────────────────────────────────────────────────────
   /**
    * Rebuilds allResults from originalResults according to currentSort.
@@ -953,7 +982,7 @@
    * A clearTimeout guard prevents stacked animations on rapid filter toggles.
    */
   function updateMobileFilterCount() {
-    var total = activeTypeFilters.size + activeCategoryFilters.size;
+    var total = activeTypeFilters.size + activeCategoryFilters.size + (activeOwnerFilter ? 1 : 0);
     $("#doc-search-filter-count").text(total > 0 ? "(" + total + ")" : "");
   }
 
@@ -1023,6 +1052,12 @@
   function applyFilters() {
     filteredResults = allResults.filter(function (r) {
       var raw = r.raw || {};
+      if (activeOwnerFilter) {
+        var owners = splitFieldValues(raw.resourceowner || "");
+        if (owners.indexOf(activeOwnerFilter) === -1) {
+          return false;
+        }
+      }
       if (
         activeTypeFilters.size > 0 &&
         !activeTypeFilters.has(raw.resourcedoctype)
@@ -1302,7 +1337,10 @@
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
             $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
           });
-        })($row.find(".doc-search-table__col-pages"), formatFileMeta(raw).trim());
+        })(
+          $row.find(".doc-search-table__col-pages"),
+          formatFileMeta(raw).trim(),
+        );
       }
     });
   }
@@ -1330,7 +1368,8 @@
           " of " +
           total +
           " result" +
-          (total !== 1 ? "s" : ""),
+          (total !== 1 ? "s" : "") +
+          (initialQuery ? ' for "' + initialQuery + '"' : ""),
       );
     }
   }
@@ -1618,6 +1657,7 @@
       "#doc-search-drawer-category-filters",
       activeCategoryFilters,
     );
+    buildDropdownFacet("resourceowner", "#doc-search-drawer-owner", activeOwnerFilter);
     $('select[name="doc-search-drawer-sort"]').val(currentSort);
   }
 
@@ -1671,6 +1711,11 @@
     currentSort = drawerSort;
     $('select[name="doc-search-sort"]').val(drawerSort);
 
+    // Read owner
+    var drawerOwner = $('select[name="doc-search-drawer-owner"]').val() || "";
+    activeOwnerFilter = drawerOwner;
+    $('select[name="doc-search-owner"]').val(drawerOwner);
+
     // Rebuild filter sets from drawer checkboxes
     activeTypeFilters.clear();
     activeCategoryFilters.clear();
@@ -1697,6 +1742,7 @@
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
     $('select[name="doc-search-drawer-sort"]').val("relevancy");
+    $('select[name="doc-search-drawer-owner"]').val("");
   });
 
   // ── Event: checkbox filter change ────────────────────────────────────────────
@@ -1765,6 +1811,12 @@
     applyFilters();
   });
 
+  // ── Event: owner change ───────────────────────────────────────────────────────
+  $(document).on("change", 'select[name="doc-search-owner"]', function () {
+    activeOwnerFilter = $(this).val();
+    applyFilters();
+  });
+
   // ── Event: view toggle ───────────────────────────────────────────────────────
   $(document).on("click", "#doc-search-view-toggle", function () {
     var $btn = $(this);
@@ -1802,7 +1854,7 @@
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
     // Read initial state from URL params
-    var initialQuery = getUrlParam("searchterm") || "";
+    initialQuery = getUrlParam("searchterm") || "";
     var urlSort = getUrlParam("sort");
 
     if (urlSort) {
