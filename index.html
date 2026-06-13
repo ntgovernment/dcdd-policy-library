@@ -1292,6 +1292,22 @@
                                 <span class="doc-search-view-toggle__pill"></span>
                                 <span class="doc-search-view-toggle__label">Table view</span>
                             </button>
+                            <div class="doc-search-filter-group doc-search-filter-group--sort doc-search-filter-group--sort-inline">
+                                <label class="doc-search-sort-label" for="doc-search-sort">Sort by</label>
+                                <div class="doc-search-sort-select">
+                                    <select class="doc-search-sort-select__input" id="doc-search-sort" name="doc-search-sort">
+                                        <option value="relevancy" selected>Relevance</option>
+                                        <option value="date descending">Last updated</option>
+                                        <option value="alpha ascending">A &ndash; Z</option>
+                                        <option value="alpha descending">Z &ndash; A</option>
+                                    </select>
+                                    <svg class="doc-search-sort-select__chevron" aria-hidden="true" width="20" height="20"
+                                        viewBox="61.5 9.3 13 7" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M67.5967 15.353C67.8181 15.5468 68.1824 15.5468 68.4038 15.353L74.1181 10.353C74.3395 10.1593 74.3395 9.84053 74.1181 9.64678C73.8967 9.45303 73.5324 9.45303 73.311 9.64678L68.0002 14.2937L62.6895 9.64678C62.4681 9.45303 62.1038 9.45303 61.8824 9.64678C61.661 9.84053 61.661 10.1593 61.8824 10.353L67.5967 15.353Z" />
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1321,22 +1337,7 @@
 
                 <!-- Filter sidebar -->
                 <aside class="doc-search-sidebar" id="doc-search-sidebar" aria-label="Filter results">
-                    <div class="doc-search-filter-group doc-search-filter-group--sort">
-                        <label class="doc-search-sort-label" for="doc-search-sort">Sort by</label>
-                        <div class="doc-search-sort-select">
-                            <select class="doc-search-sort-select__input" id="doc-search-sort" name="doc-search-sort">
-                                <option value="relevancy" selected>Relevance</option>
-                                <option value="date descending">Last updated</option>
-                                <option value="alpha ascending">A – Z</option>
-                                <option value="alpha descending">Z – A</option>
-                            </select>
-                            <svg class="doc-search-sort-select__chevron" aria-hidden="true" width="20" height="20"
-                                viewBox="61.5 9.3 13 7" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                    d="M67.5967 15.353C67.8181 15.5468 68.1824 15.5468 68.4038 15.353L74.1181 10.353C74.3395 10.1593 74.3395 9.84053 74.1181 9.64678C73.8967 9.45303 73.5324 9.45303 73.311 9.64678L68.0002 14.2937L62.6895 9.64678C62.4681 9.45303 62.1038 9.45303 61.8824 9.64678C61.661 9.84053 61.661 10.1593 61.8824 10.353L67.5967 15.353Z" />
-                            </svg>
-                        </div>
-                    </div>
+                    <h2 class="doc-search-sidebar__heading">Filters</h2>
 
                     <div class="doc-search-filter-group">
                         <h3 class="doc-search-filter-group__title">Type</h3>
