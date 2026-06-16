@@ -61,7 +61,7 @@ document-library/
    - Sorting is performed client-side using the retrieved results without triggering new API requests.
 
 4. **Desktop vs. Mobile Drawer Filters**:
-   - **Desktop Layout**: Filters sidebar includes "Filters" heading (`.doc-search-sidebar__heading`) at the top, followed by checkbox facets (Type, Category) and dropdown select facet (Owner).
+   - **Desktop Layout**: Filters sidebar includes a `.doc-search-sidebar__header` wrapper containing the "Filters" heading (`.doc-search-sidebar__heading`) and a "Clear all" button (`#doc-search-sidebar-clear`). Below this are checkbox facets (Type, Category) and a dropdown select facet (Content owner). All filter group titles (Type, Category, Content owner) use the `.doc-search-filter-group__title` class.
    - **Inline Sort**: The desktop Sort selector is placed in the results header control row (right side) instead of the sidebar. It uses `.doc-search-filter-group--sort-inline` modifier and is rendered as a `<select>` element.
    - **Mobile Layout (<= 900px)**: The filters sidebar and table view toggle are hidden. A mobile filter button (`#doc-search-mobile-filter-btn`) appears, which opens a slide-in drawer (`#doc-search-drawer`). The drawer contains a duplicate Sort selector (as a dropdown select) and the facet checkboxes/selectors. When "Apply filters" is clicked, drawer states are synced back to the hidden sidebar states, and the query is re-filtered.
 
@@ -72,10 +72,19 @@ document-library/
 - **Three-File HTML Synchronization**:
   - `src/search-results.html` is the source template.
   - `index.html` (root) and `search-section-preview.html` are standalone files.
-  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the card `<li>` template from `src/search-results.html` to `search-section-preview.html` on changes. However, structural changes to the search results or filters HTML should be built or double-checked to ensure they sync.
+  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, ensuring all structural changes to the search results layout, filters, and card template are synced to the local dev preview automatically.
 - **CSS Tokens**:
   - Never declare `:root` variables in `search-widget.css` or `collection-page.css` directly. Always place them in `tokens.css`.
 - **`!important` CSS Overrides**:
   - Conflicting styles from the NTG central stylesheet (`main.css`, loaded by Squiz Matrix) require `!important` to be overridden correctly. This is an expected pattern in this repository.
 - **No Font Awesome in Bundles**:
   - Standard UI icons should be inline SVGs using `fill="currentColor"` or `stroke="currentColor"` so they adapt to theme colors and load instantly without asset dependencies.
+- **Muted/Disabled Checkmark Filters**:
+  - Checkmark filters with a count of `0` receive the `disabled` attribute on their input and the class `doc-search-facet-item--disabled` on the label wrapper. They are styled with `opacity: 0.5` and `cursor: not-allowed` (using `!important` to override defaults), and the custom checkbox background SVGs are replaced with muted gray versions.
+- **File Metadata Formatting**:
+  - The document type and size metadata (e.g., `(PDF 366.9 KB)`) is rendered independently from the main title link in a `<span class="doc-search-result__file-meta">` to ensure it is not clickable and is styled separately (14px, regular weight, gray text).
+  - The `formatFileMetaHtml(raw)` function constructs this HTML string in `coveo-search.js`, while `formatFileMeta(raw)` returns the plain text representation. This exact text string is used to append a text fragment to collection links, allowing the browser to highlight the matching document when arriving at the collection page.
+- **Hiding Empty Badge/Tag Markup**:
+  - Empty badges or tags (such as the document type tag `[data-ref="search-result-doctype"]` when no `resourcedoctype` is present) must be hidden using the `hidden` attribute.
+  - To ensure elements with `display: inline-flex` (like `.doc-search-result__tag`) are hidden correctly overriding class rules, a specific `.doc-search-result__tag[hidden] { display: none !important; }` rule is declared in CSS.
+

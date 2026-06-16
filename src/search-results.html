@@ -105,7 +105,12 @@
 
         <!-- Filter sidebar -->
         <aside class="doc-search-sidebar" id="doc-search-sidebar" aria-label="Filter results">
-            <h2 class="doc-search-sidebar__heading">Filters</h2>
+            <div class="doc-search-sidebar__header">
+                <h2 class="doc-search-sidebar__heading">Filters</h2>
+                <button type="button" class="doc-search-sidebar__clear" id="doc-search-sidebar-clear">
+                    Clear all
+                </button>
+            </div>
 
             <div class="doc-search-filter-group">
                 <h3 class="doc-search-filter-group__title">Type</h3>
@@ -118,7 +123,7 @@
                     aria-label="Filter by category"></ul>
             </div>
             <div class="doc-search-filter-group doc-search-filter-group--owner">
-                <label class="doc-search-owner-label" for="doc-search-owner">Owner</label>
+                <label class="doc-search-filter-group__title" for="doc-search-owner">Content owner</label>
                 <div class="doc-search-owner-select">
                     <select class="doc-search-owner-select__input" id="doc-search-owner" name="doc-search-owner">
                         <option value="">All owners</option>
@@ -184,7 +189,7 @@
                     aria-label="Filter by category"></ul>
             </div>
             <div class="doc-search-filter-group doc-search-filter-group--owner">
-                <label class="doc-search-owner-label" for="doc-search-drawer-owner">Owner</label>
+                <label class="doc-search-filter-group__title" for="doc-search-drawer-owner">Content owner</label>
                 <div class="doc-search-owner-select">
                     <select class="doc-search-owner-select__input" id="doc-search-drawer-owner"
                         name="doc-search-drawer-owner">
@@ -198,7 +203,7 @@
                 </div>
             </div>
             <button type="button" class="doc-search-drawer__clear" id="doc-search-drawer-clear">
-                Clear all filters
+                Clear all
             </button>
         </div>
 
@@ -215,16 +220,19 @@
 
 <!-- Result card template (hidden — cloned per result by coveo-search.js) -->
 <li class="doc-search-result search-template" hidden>
-    <a class="doc-search-result__title-link" href="#" data-ref="search-result-link">
-        <span data-ref="search-result-title"></span>
-        <svg class="doc-search-result__ext-icon" data-ref="search-result-extlink" hidden aria-hidden="true" width="12"
-            height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-            <polyline points="15 3 21 3 21 9" />
-            <line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
-    </a>
+    <div class="doc-search-result__header">
+        <a class="doc-search-result__title-link" href="#" data-ref="search-result-link">
+            <span data-ref="search-result-title"></span>
+            <svg class="doc-search-result__ext-icon" data-ref="search-result-extlink" hidden aria-hidden="true" width="12"
+                height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+        </a>
+        <span data-ref="search-result-file-meta-container"></span>
+    </div>
     <p class="doc-search-result__description" data-ref="search-result-description"></p>
     <div class="doc-search-result__page-row" data-ref="search-result-page-row" hidden>
         <svg class="doc-search-result__page-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"
@@ -246,7 +254,7 @@
             data-ref="search-result-collection-link"><span data-ref="search-result-collection"></span></a>
     </div>
     <div class="doc-search-result__meta">
-        <span class="doc-search-result__tag" data-ref="search-result-doctype"></span>
+        <span class="doc-search-result__tag" data-ref="search-result-doctype" hidden></span>
         <div class="doc-search-result__updated">Last updated: <span data-ref="search-result-last-updated"></span></div>
     </div>
 </li>

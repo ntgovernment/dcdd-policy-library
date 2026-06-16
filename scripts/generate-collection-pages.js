@@ -231,9 +231,9 @@ function buildDocumentsHtml(results) {
       var size = (r.resourcefilesize || "").trim();
       var meta =
         tlabel && size
-          ? " " + tlabel + " (" + size + ")"
+          ? " (" + tlabel + " " + size + ")"
           : tlabel
-            ? " " + tlabel
+            ? " (" + tlabel + ")"
             : size
               ? " (" + size + ")"
               : "";

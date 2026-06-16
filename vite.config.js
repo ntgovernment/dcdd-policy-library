@@ -10,16 +10,14 @@ import { copyFileSync, readFileSync, writeFileSync } from "fs";
  */
 function syncPreviewTemplate() {
   const src = readFileSync("src/search-results.html", "utf8");
-  const match = src.match(/(<!-- Result card template[\s\S]*?<\/li>)/);
-  if (!match) return;
-  // src uses no leading indent; preview uses 8-space indent
-  const indented = match[1]
+  // Indent the entire src/search-results.html by 8 spaces
+  const indented = src
     .split("\n")
     .map((line) => (line.length ? "        " + line : line))
     .join("\n");
   let preview = readFileSync("search-section-preview.html", "utf8");
   preview = preview.replace(
-    /        <!-- Result card template[\s\S]*?<\/li>/,
+    /        <div class="doc-search-outer">[\s\S]*?<\/li>/,
     indented,
   );
   writeFileSync("search-section-preview.html", preview, "utf8");
@@ -79,19 +77,23 @@ export default defineConfig({
                   "dist/search-results.html",
                 );
                 syncPreviewTemplate();
+                const { execSync } = require("child_process");
+                execSync("node scripts/generate-collection-pages.js");
                 server.config.logger.info(
-                  `[auto-rebuild] ${file} changed — HTML recopied, reloading browser`,
+                  `[auto-rebuild] ${file} changed — HTML recopied and pages generated, reloading browser`,
                 );
               } else {
-                // Preview HTML changed — just reload
+                // Preview HTML changed — regenerate pages
+                const { execSync } = require("child_process");
+                execSync("node scripts/generate-collection-pages.js");
                 server.config.logger.info(
-                  `[auto-rebuild] ${file} changed — reloading browser`,
+                  `[auto-rebuild] ${file} changed — pages generated, reloading browser`,
                 );
               }
               server.hot.send({ type: "full-reload" });
             } catch (err) {
               server.config.logger.error(
-                "[auto-rebuild] HTML copy failed: " + err.message,
+                "[auto-rebuild] HTML update failed: " + err.message,
               );
             }
             return;
@@ -100,14 +102,14 @@ export default defineConfig({
           if (building) return;
 
           building = true;
-          const isCollectionCss = normalised.endsWith("collection-page.css");
+          const isCollectionAsset = normalised.endsWith("collection-page.css") || normalised.endsWith("collection-page.js");
           // tokens.css changes affect both bundles — rebuild both sequentially
           const isTokens = normalised.endsWith("tokens.css");
           server.config.logger.info(
-            `[auto-rebuild] ${file} changed — rebuilding ${isCollectionCss ? "collection" : isTokens ? "all" : "search"}…`,
+            `[auto-rebuild] ${file} changed — rebuilding ${isCollectionAsset ? "collection" : isTokens ? "all" : "search"}…`,
           );
           try {
-            if (isCollectionCss) {
+            if (isCollectionAsset) {
               await build({
                 logLevel: "silent",
                 configFile: "vite.collection.config.js",

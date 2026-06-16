@@ -717,10 +717,16 @@
   function formatFileMeta(raw) {
     var ext = FILE_TYPE_LABELS[raw.resourcetype] || "";
     var size = raw.resourcefilesize || "";
-    if (ext && size) return " " + ext + " (" + size + ")";
-    if (ext) return " " + ext;
-    if (size) return " (" + size + ")";
+    if (ext && size) return "(" + ext + " " + size + ")";
+    if (ext) return "(" + ext + ")";
+    if (size) return "(" + size + ")";
     return "";
+  }
+
+  function formatFileMetaHtml(raw) {
+    var metaText = formatFileMeta(raw);
+    if (!metaText) return "";
+    return '<span class="doc-search-result__file-meta">' + escHtml(metaText) + '</span>';
   }
 
   // ── View helpers ─────────────────────────────────────────────────────────────
@@ -856,12 +862,15 @@
       var isHidden = idx >= MAX_FACET_VISIBLE;
       var checked = activeSet.has(key) ? " checked" : "";
       var disabled = count === 0 ? " disabled" : "";
+      var disabledClass = count === 0 ? " doc-search-facet-item--disabled" : "";
       var hiddenAttr = isHidden ? ' class="doc-search-facet-hidden"' : "";
       var $item = $(
         "<li" +
           hiddenAttr +
           ">" +
-          '<label class="doc-search-facet-item">' +
+          '<label class="doc-search-facet-item' +
+          disabledClass +
+          '">' +
           '<input type="checkbox" data-facet="' +
           field +
           '" data-value="' +
@@ -1201,9 +1210,11 @@
         .html(
           '<span class="doc-search-result__title-text">' +
             escHtml(raw.resourcefriendlytitle || result.title || "") +
-            "</span>" +
-            formatFileMetaHtml(raw),
+            "</span>"
         );
+      $item
+        .find('[data-ref="search-result-file-meta-container"]')
+        .html(formatFileMetaHtml(raw));
 
       // External link icon — hidden
 
@@ -1258,9 +1269,13 @@
       }
 
       // Doctype tag
-      $item
-        .find('[data-ref="search-result-doctype"]')
-        .text(raw.resourcedoctype || "");
+      var doctype = raw.resourcedoctype || "";
+      var $doctype = $item.find('[data-ref="search-result-doctype"]');
+      if (doctype) {
+        $doctype.text(doctype).removeAttr("hidden");
+      } else {
+        $doctype.attr("hidden", true);
+      }
 
       // Last updated
       $item
@@ -1304,9 +1319,10 @@
           '<span class="doc-search-result__title-text">' +
           escHtml(titleText) +
           "</span>" +
-          formatFileMetaHtml(raw) +
           extIcon +
           "</a>" +
+          " " +
+          formatFileMetaHtml(raw) +
           "</td>" +
           '<td class="doc-search-table__col-updated doc-search-table__updated">' +
           escHtml(updated) +
@@ -1738,11 +1754,21 @@
     closeDrawer();
   });
 
-  // Clear all filters inside drawer (resets UI without applying)
+  // Clear all inside drawer (resets UI without applying)
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
     $('select[name="doc-search-drawer-sort"]').val("relevancy");
     $('select[name="doc-search-drawer-owner"]').val("");
+  });
+
+  // Clear all on sidebar (applies immediately)
+  $(document).on("click", "#doc-search-sidebar-clear", function () {
+    $("#doc-search-sidebar [data-facet]").prop("checked", false);
+    activeTypeFilters.clear();
+    activeCategoryFilters.clear();
+    activeOwnerFilter = "";
+    $('select[name="doc-search-owner"]').val("");
+    applyFilters();
   });
 
   // ── Event: checkbox filter change ────────────────────────────────────────────
