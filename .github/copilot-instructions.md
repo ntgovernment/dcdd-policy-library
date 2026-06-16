@@ -79,3 +79,5 @@ document-library/
   - Conflicting styles from the NTG central stylesheet (`main.css`, loaded by Squiz Matrix) require `!important` to be overridden correctly. This is an expected pattern in this repository.
 - **No Font Awesome in Bundles**:
   - Standard UI icons should be inline SVGs using `fill="currentColor"` or `stroke="currentColor"` so they adapt to theme colors and load instantly without asset dependencies.
+- **Muted/Disabled Checkmark Filters**:
+  - Checkmark filters with a count of `0` receive the `disabled` attribute on their input and the class `doc-search-facet-item--disabled` on the label wrapper. They are styled with `opacity: 0.5` and `cursor: not-allowed` (using `!important` to override defaults), and the custom checkbox background SVGs are replaced with muted gray versions.

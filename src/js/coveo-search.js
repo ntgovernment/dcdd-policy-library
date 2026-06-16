@@ -856,12 +856,15 @@
       var isHidden = idx >= MAX_FACET_VISIBLE;
       var checked = activeSet.has(key) ? " checked" : "";
       var disabled = count === 0 ? " disabled" : "";
+      var disabledClass = count === 0 ? " doc-search-facet-item--disabled" : "";
       var hiddenAttr = isHidden ? ' class="doc-search-facet-hidden"' : "";
       var $item = $(
         "<li" +
           hiddenAttr +
           ">" +
-          '<label class="doc-search-facet-item">' +
+          '<label class="doc-search-facet-item' +
+          disabledClass +
+          '">' +
           '<input type="checkbox" data-facet="' +
           field +
           '" data-value="' +
