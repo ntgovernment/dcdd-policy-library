@@ -661,8 +661,6 @@ tr.doc-search-row--moving {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--clr-border-subtle);
 }
 
 .doc-search-sidebar__heading {
@@ -676,7 +674,7 @@ tr.doc-search-row--moving {
   background: none;
   border: none;
   padding: 0;
-  font-size: var(--font-size-sm);
+  font-size: 14px;
   color: var(--clr-link-default);
   text-decoration: underline;
   cursor: pointer;
