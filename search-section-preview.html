@@ -1243,19 +1243,19 @@
         <!-- ── Results area (injected for local preview) ── -->
         <div class="doc-search-outer">
             <div class="doc-search-layout">
-
+        
                 <!-- Results column -->
                 <div class="doc-search-results-col" data-view="card" id="doc-search-results-col">
-
+        
                     <!-- Loading spinner -->
                     <div class="doc-search-spinner d-none" role="status" id="initialLoadingSpinner">
                         <span class="doc-search-spinner__ring" aria-hidden="true"></span>
                         <span>Loading search results…</span>
                     </div>
-
+        
                     <!-- User message -->
                     <div class="doc-search-user-message" id="doc-search-user-message"></div>
-
+        
                     <!-- Mobile filter button (hidden on desktop) -->
                     <button type="button" class="doc-search-mobile-filter-btn" id="doc-search-mobile-filter-btn"
                         aria-label="Open filters" aria-expanded="false" aria-controls="doc-search-drawer">
@@ -1274,8 +1274,7 @@
                                 </defs>
                             </svg>
                             <span class="doc-search-mobile-filter-btn__label">Filters <span
-                                    class="doc-search-mobile-filter-btn__count"
-                                    id="doc-search-filter-count"></span></span>
+                                    class="doc-search-mobile-filter-btn__count" id="doc-search-filter-count"></span></span>
                         </span>
                         <svg class="doc-search-mobile-filter-btn__chevron" aria-hidden="true" width="15" height="24"
                             viewBox="0 0 15 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1284,17 +1283,17 @@
                                 fill="currentColor" />
                         </svg>
                     </button>
-
+        
                     <!-- Governance contact callout -->
-                    <div class="ntgc-callout ntgc-my-24">
+                    <div class="ntgc-callout ntgc-my-8">
                         <div>
                             <p>Can't find what you're looking for or need a document added? Contact&nbsp;<a
                                     href="mailto:governance.dcdd@nt.gov.au">governance.dcdd@nt.gov.au</a></p>
-                            <p>Find whole-of-government policies on <a
-                                    href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.</p>
+                            <p>Find whole-of-government policies on <a href="https://ntgcentral.nt.gov.au/policy-library">NTG
+                                    Central</a>.</p>
                         </div>
                     </div>
-
+        
                     <!-- Results header -->
                     <div class="doc-search-results-header">
                         <p class="doc-search-results-summary" id="doc-search-results-summary"></p>
@@ -1304,14 +1303,15 @@
                                 <span class="doc-search-view-toggle__pill"></span>
                                 <span class="doc-search-view-toggle__label">Table view</span>
                             </button>
-                            <div class="doc-search-filter-group doc-search-filter-group--sort doc-search-filter-group--sort-inline">
+                            <div
+                                class="doc-search-filter-group doc-search-filter-group--sort doc-search-filter-group--sort-inline">
                                 <label class="doc-search-sort-label" for="doc-search-sort">Sort by</label>
                                 <div class="doc-search-sort-select">
                                     <select class="doc-search-sort-select__input" id="doc-search-sort" name="doc-search-sort">
                                         <option value="relevancy" selected>Relevance</option>
                                         <option value="date descending">Last updated</option>
-                                        <option value="alpha ascending">A &ndash; Z</option>
-                                        <option value="alpha descending">Z &ndash; A</option>
+                                        <option value="alpha ascending">A – Z</option>
+                                        <option value="alpha descending">Z – A</option>
                                     </select>
                                     <svg class="doc-search-sort-select__chevron" aria-hidden="true" width="20" height="20"
                                         viewBox="61.5 9.3 13 7" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -1322,10 +1322,10 @@
                             </div>
                         </div>
                     </div>
-
+        
                     <!-- Card results list -->
                     <ul class="doc-search-results-list" id="doc-search-results-list" role="list"></ul>
-
+        
                     <!-- Table results -->
                     <div class="doc-search-table-wrap">
                         <table class="doc-search-table" id="doc-search-table">
@@ -1340,17 +1340,21 @@
                             <tbody id="doc-search-table-body"></tbody>
                         </table>
                     </div>
-
+        
                     <!-- Pagination -->
-                    <nav class="doc-search-pagination" id="doc-search-pagination" aria-label="Search results pages">
-                    </nav>
-
+                    <nav class="doc-search-pagination" id="doc-search-pagination" aria-label="Search results pages"></nav>
+        
                 </div><!-- /.doc-search-results-col -->
-
+        
                 <!-- Filter sidebar -->
                 <aside class="doc-search-sidebar" id="doc-search-sidebar" aria-label="Filter results">
-                    <h2 class="doc-search-sidebar__heading">Filters</h2>
-
+                    <div class="doc-search-sidebar__header">
+                        <h2 class="doc-search-sidebar__heading">Filters</h2>
+                        <button type="button" class="doc-search-sidebar__clear" id="doc-search-sidebar-clear">
+                            Clear all filters
+                        </button>
+                    </div>
+        
                     <div class="doc-search-filter-group">
                         <h3 class="doc-search-filter-group__title">Type</h3>
                         <ul class="doc-search-facet-list" id="doc-search-type-filters" role="group"
@@ -1362,7 +1366,7 @@
                             aria-label="Filter by category"></ul>
                     </div>
                     <div class="doc-search-filter-group doc-search-filter-group--owner">
-                        <label class="doc-search-owner-label" for="doc-search-owner">Owner</label>
+                        <label class="doc-search-filter-group__title" for="doc-search-owner">Content owner</label>
                         <div class="doc-search-owner-select">
                             <select class="doc-search-owner-select__input" id="doc-search-owner" name="doc-search-owner">
                                 <option value="">All owners</option>
@@ -1375,16 +1379,16 @@
                         </div>
                     </div>
                 </aside>
-
+        
             </div><!-- /.doc-search-layout -->
-
+        
             <!-- Mobile filter drawer overlay -->
             <div class="doc-search-drawer-overlay" id="doc-search-drawer-overlay" aria-hidden="true"></div>
-
+        
             <!-- Mobile filter drawer -->
             <div class="doc-search-drawer" id="doc-search-drawer" role="dialog" aria-modal="true" aria-label="Filters"
                 aria-hidden="true">
-
+        
                 <!-- Drawer header -->
                 <div class="doc-search-drawer__header">
                     <span class="doc-search-drawer__title">Filters</span>
@@ -1397,7 +1401,7 @@
                         </svg>
                     </button>
                 </div>
-
+        
                 <!-- Drawer body (scrollable) -->
                 <div class="doc-search-drawer__body">
                     <div class="doc-search-filter-group doc-search-filter-group--sort">
@@ -1416,7 +1420,6 @@
                                     d="M67.5967 15.353C67.8181 15.5468 68.1824 15.5468 68.4038 15.353L74.1181 10.353C74.3395 10.1593 74.3395 9.84053 74.1181 9.64678C73.8967 9.45303 73.5324 9.45303 73.311 9.64678L68.0002 14.2937L62.6895 9.64678C62.4681 9.45303 62.1038 9.45303 61.8824 9.64678C61.661 9.84053 61.661 10.1593 61.8824 10.353L67.5967 15.353Z" />
                             </svg>
                         </div>
-
                     </div>
                     <div class="doc-search-filter-group">
                         <h3 class="doc-search-filter-group__title">Type</h3>
@@ -1429,7 +1432,7 @@
                             aria-label="Filter by category"></ul>
                     </div>
                     <div class="doc-search-filter-group doc-search-filter-group--owner">
-                        <label class="doc-search-owner-label" for="doc-search-drawer-owner">Owner</label>
+                        <label class="doc-search-filter-group__title" for="doc-search-drawer-owner">Content owner</label>
                         <div class="doc-search-owner-select">
                             <select class="doc-search-owner-select__input" id="doc-search-drawer-owner"
                                 name="doc-search-drawer-owner">
@@ -1446,18 +1449,18 @@
                         Clear all filters
                     </button>
                 </div>
-
+        
                 <!-- Drawer footer -->
                 <div class="doc-search-drawer__footer">
                     <button type="button" class="doc-search-drawer__apply" id="doc-search-drawer-apply">
                         Apply filters
                     </button>
                 </div>
-
+        
             </div><!-- /.doc-search-drawer -->
-
+        
         </div><!-- /.doc-search-outer -->
-
+        
         <!-- Result card template (hidden — cloned per result by coveo-search.js) -->
         <li class="doc-search-result search-template" hidden>
             <a class="doc-search-result__title-link" href="#" data-ref="search-result-link">

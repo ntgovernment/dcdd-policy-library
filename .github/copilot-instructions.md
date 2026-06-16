@@ -72,7 +72,7 @@ document-library/
 - **Three-File HTML Synchronization**:
   - `src/search-results.html` is the source template.
   - `index.html` (root) and `search-section-preview.html` are standalone files.
-  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the card `<li>` template from `src/search-results.html` to `search-section-preview.html` on changes. However, structural changes to the search results or filters HTML should be built or double-checked to ensure they sync.
+  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, ensuring all structural changes to the search results layout, filters, and card template are synced to the local dev preview automatically.
 - **CSS Tokens**:
   - Never declare `:root` variables in `search-widget.css` or `collection-page.css` directly. Always place them in `tokens.css`.
 - **`!important` CSS Overrides**:
