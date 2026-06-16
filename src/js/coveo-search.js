@@ -1741,14 +1741,14 @@
     closeDrawer();
   });
 
-  // Clear all filters inside drawer (resets UI without applying)
+  // Clear all inside drawer (resets UI without applying)
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
     $('select[name="doc-search-drawer-sort"]').val("relevancy");
     $('select[name="doc-search-drawer-owner"]').val("");
   });
 
-  // Clear all filters on sidebar (applies immediately)
+  // Clear all on sidebar (applies immediately)
   $(document).on("click", "#doc-search-sidebar-clear", function () {
     $("#doc-search-sidebar [data-facet]").prop("checked", false);
     activeTypeFilters.clear();
