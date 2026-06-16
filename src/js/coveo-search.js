@@ -717,10 +717,16 @@
   function formatFileMeta(raw) {
     var ext = FILE_TYPE_LABELS[raw.resourcetype] || "";
     var size = raw.resourcefilesize || "";
-    if (ext && size) return " " + ext + " (" + size + ")";
-    if (ext) return " " + ext;
-    if (size) return " (" + size + ")";
+    if (ext && size) return "(" + ext + " " + size + ")";
+    if (ext) return "(" + ext + ")";
+    if (size) return "(" + size + ")";
     return "";
+  }
+
+  function formatFileMetaHtml(raw) {
+    var metaText = formatFileMeta(raw);
+    if (!metaText) return "";
+    return '<span class="doc-search-result__file-meta">' + escHtml(metaText) + '</span>';
   }
 
   // ── View helpers ─────────────────────────────────────────────────────────────
@@ -1204,9 +1210,11 @@
         .html(
           '<span class="doc-search-result__title-text">' +
             escHtml(raw.resourcefriendlytitle || result.title || "") +
-            "</span>" +
-            formatFileMetaHtml(raw),
+            "</span>"
         );
+      $item
+        .find('[data-ref="search-result-file-meta-container"]')
+        .html(formatFileMetaHtml(raw));
 
       // External link icon — hidden
 
@@ -1307,9 +1315,10 @@
           '<span class="doc-search-result__title-text">' +
           escHtml(titleText) +
           "</span>" +
-          formatFileMetaHtml(raw) +
           extIcon +
           "</a>" +
+          " " +
+          formatFileMetaHtml(raw) +
           "</td>" +
           '<td class="doc-search-table__col-updated doc-search-table__updated">' +
           escHtml(updated) +

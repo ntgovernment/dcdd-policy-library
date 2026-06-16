@@ -144,7 +144,7 @@ This CommonJS Node.js script is the sole source of truth for both generated HTML
 - **`rewriteVendorPaths(html, prefix)`** — replaces every NTG intranet CDN URL (jQuery, auds.js, fotorama, components.js, etc.) with a local relative path. `prefix` is `"./"` for root pages (`index.html`) and `"../"` for `collection/*.html`.
 - **Back-to-search link** — each collection page renders `<a href="../index.html" onclick="if(history.length>1){history.back();return false;}">`. This uses browser history if available; otherwise navigates to `index.html`.
 - **Related policies** — the "Related policies" section on each collection page links to all sibling collection pages (all except the current one) using relative `slug.html` hrefs.
-- **Document grouping** — within each collection, results are grouped by `raw.resourcedoctype` (e.g. "Policy", "Procedure") and rendered as `<section class="policy-documents">` blocks. Each document title is rendered as `Title TYPE (SIZE)` (e.g. `Gifts and benefits policy DOCX (389.1 KB)`) — matching the format produced by `formatFileMeta()` in `coveo-search.js` so that text fragment links from search result cards resolve correctly.
+- **Document grouping** — within each collection, results are grouped by `raw.resourcedoctype` (e.g. "Policy", "Procedure") and rendered as `<section class="policy-documents">` blocks. Each document title is rendered as `Title (TYPE SIZE)` (e.g. `Gifts and benefits policy (DOCX 389.1 KB)`) — matching the format produced by `formatFileMeta()` in `coveo-search.js` so that text fragment links from search result cards resolve correctly.
 - **Excluded document types** — results with `raw.resourcedoctype === "Supporting document"` are skipped during the collection map build. They do not appear on any collection page. The same type is excluded at runtime in `coveo-search.js` via the `EXCLUDED_DOCTYPE` constant.
 - **Google Analytics removal** — the script strips the `<script async src="https://www.googletagmanager.com/gtag/...">` block from `index.html` (GitHub Pages is a public preview, not a tracked environment).
 
@@ -167,10 +167,10 @@ An empty `.nojekyll` file at the repo root prevents GitHub Pages from running Je
 
    This runs whenever `window.location.hostname` is `localhost`, `127.0.0.1`, or ends with `.github.io`. On the production intranet the URL is left unchanged.
 
-2. **Appends a text fragment** — `formatFileMeta(raw)` derives the file-type/size suffix (e.g. `DOCX (612.4 KB)`) and encodes it as a [text fragment](https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments) appended to the URL:
+2. **Appends a text fragment** — `formatFileMeta(raw)` derives the file-type/size suffix (e.g. `(DOCX 612.4 KB)`) and encodes it as a [text fragment](https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments) appended to the URL:
    ```
    …/recruitment-policy-guidelines
-     → …/recruitment-policy-guidelines#:~:text=DOCX%20(612.4%20KB)
+     → …/recruitment-policy-guidelines#:~:text=(DOCX%20612.4%20KB)
    ```
    When the user clicks a "Collection:" link, the browser scrolls to and highlights the matching document on the collection page. No fragment is appended when the document has no file-type or size metadata.
 

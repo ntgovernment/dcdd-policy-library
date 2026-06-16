@@ -1463,16 +1463,19 @@
         
         <!-- Result card template (hidden — cloned per result by coveo-search.js) -->
         <li class="doc-search-result search-template" hidden>
-            <a class="doc-search-result__title-link" href="#" data-ref="search-result-link">
-                <span data-ref="search-result-title"></span>
-                <svg class="doc-search-result__ext-icon" data-ref="search-result-extlink" hidden aria-hidden="true" width="12"
-                    height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-            </a>
+            <div class="doc-search-result__header">
+                <a class="doc-search-result__title-link" href="#" data-ref="search-result-link">
+                    <span data-ref="search-result-title"></span>
+                    <svg class="doc-search-result__ext-icon" data-ref="search-result-extlink" hidden aria-hidden="true" width="12"
+                        height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                </a>
+                <span data-ref="search-result-file-meta-container"></span>
+            </div>
             <p class="doc-search-result__description" data-ref="search-result-description"></p>
             <div class="doc-search-result__page-row" data-ref="search-result-page-row" hidden>
                 <svg class="doc-search-result__page-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24"
