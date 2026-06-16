@@ -84,4 +84,7 @@ document-library/
 - **File Metadata Formatting**:
   - The document type and size metadata (e.g., `(PDF 366.9 KB)`) is rendered independently from the main title link in a `<span class="doc-search-result__file-meta">` to ensure it is not clickable and is styled separately (14px, regular weight, gray text).
   - The `formatFileMetaHtml(raw)` function constructs this HTML string in `coveo-search.js`, while `formatFileMeta(raw)` returns the plain text representation. This exact text string is used to append a text fragment to collection links, allowing the browser to highlight the matching document when arriving at the collection page.
+- **Hiding Empty Badge/Tag Markup**:
+  - Empty badges or tags (such as the document type tag `[data-ref="search-result-doctype"]` when no `resourcedoctype` is present) must be hidden using the `hidden` attribute.
+  - To ensure elements with `display: inline-flex` (like `.doc-search-result__tag`) are hidden correctly overriding class rules, a specific `.doc-search-result__tag[hidden] { display: none !important; }` rule is declared in CSS.
 

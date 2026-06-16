@@ -427,6 +427,10 @@ tr.doc-search-row--moving {
   word-wrap: break-word;
 }
 
+.doc-search-result__tag[hidden] {
+  display: none !important;
+}
+
 /* Last updated */
 .doc-search-result__updated {
   font-size: 14px;

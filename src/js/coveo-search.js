@@ -1269,9 +1269,13 @@
       }
 
       // Doctype tag
-      $item
-        .find('[data-ref="search-result-doctype"]')
-        .text(raw.resourcedoctype || "");
+      var doctype = raw.resourcedoctype || "";
+      var $doctype = $item.find('[data-ref="search-result-doctype"]');
+      if (doctype) {
+        $doctype.text(doctype).removeAttr("hidden");
+      } else {
+        $doctype.attr("hidden", true);
+      }
 
       // Last updated
       $item
