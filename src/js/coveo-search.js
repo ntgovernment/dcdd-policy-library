@@ -992,7 +992,7 @@
    */
   function updateMobileFilterCount() {
     var total = activeTypeFilters.size + activeCategoryFilters.size + (activeOwnerFilter ? 1 : 0);
-    $("#doc-search-filter-count").text(total > 0 ? "(" + total + ")" : "");
+    $("#doc-search-filter-count, #doc-search-drawer-filter-count").text(total > 0 ? "(" + total + ")" : "");
   }
 
   /**
