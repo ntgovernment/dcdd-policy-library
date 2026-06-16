@@ -1748,6 +1748,16 @@
     $('select[name="doc-search-drawer-owner"]').val("");
   });
 
+  // Clear all filters on sidebar (applies immediately)
+  $(document).on("click", "#doc-search-sidebar-clear", function () {
+    $("#doc-search-sidebar [data-facet]").prop("checked", false);
+    activeTypeFilters.clear();
+    activeCategoryFilters.clear();
+    activeOwnerFilter = "";
+    $('select[name="doc-search-owner"]').val("");
+    applyFilters();
+  });
+
   // ── Event: checkbox filter change ────────────────────────────────────────────
   $(document).on("change", "[data-facet]", function () {
     var $cb = $(this);

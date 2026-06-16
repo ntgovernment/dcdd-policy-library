@@ -105,7 +105,12 @@
 
         <!-- Filter sidebar -->
         <aside class="doc-search-sidebar" id="doc-search-sidebar" aria-label="Filter results">
-            <h2 class="doc-search-sidebar__heading">Filters</h2>
+            <div class="doc-search-sidebar__header">
+                <h2 class="doc-search-sidebar__heading">Filters</h2>
+                <button type="button" class="doc-search-sidebar__clear" id="doc-search-sidebar-clear">
+                    Clear all filters
+                </button>
+            </div>
 
             <div class="doc-search-filter-group">
                 <h3 class="doc-search-filter-group__title">Type</h3>
@@ -118,7 +123,7 @@
                     aria-label="Filter by category"></ul>
             </div>
             <div class="doc-search-filter-group doc-search-filter-group--owner">
-                <label class="doc-search-owner-label" for="doc-search-owner">Owner</label>
+                <label class="doc-search-filter-group__title" for="doc-search-owner">Content owner</label>
                 <div class="doc-search-owner-select">
                     <select class="doc-search-owner-select__input" id="doc-search-owner" name="doc-search-owner">
                         <option value="">All owners</option>
@@ -184,7 +189,7 @@
                     aria-label="Filter by category"></ul>
             </div>
             <div class="doc-search-filter-group doc-search-filter-group--owner">
-                <label class="doc-search-owner-label" for="doc-search-drawer-owner">Owner</label>
+                <label class="doc-search-filter-group__title" for="doc-search-drawer-owner">Content owner</label>
                 <div class="doc-search-owner-select">
                     <select class="doc-search-owner-select__input" id="doc-search-drawer-owner"
                         name="doc-search-drawer-owner">

@@ -61,7 +61,7 @@ document-library/
    - Sorting is performed client-side using the retrieved results without triggering new API requests.
 
 4. **Desktop vs. Mobile Drawer Filters**:
-   - **Desktop Layout**: Filters sidebar includes "Filters" heading (`.doc-search-sidebar__heading`) at the top, followed by checkbox facets (Type, Category) and dropdown select facet (Owner).
+   - **Desktop Layout**: Filters sidebar includes a `.doc-search-sidebar__header` wrapper containing the "Filters" heading (`.doc-search-sidebar__heading`) and a "Clear all filters" button (`#doc-search-sidebar-clear`). Below this are checkbox facets (Type, Category) and a dropdown select facet (Content owner). All filter group titles (Type, Category, Content owner) use the `.doc-search-filter-group__title` class.
    - **Inline Sort**: The desktop Sort selector is placed in the results header control row (right side) instead of the sidebar. It uses `.doc-search-filter-group--sort-inline` modifier and is rendered as a `<select>` element.
    - **Mobile Layout (<= 900px)**: The filters sidebar and table view toggle are hidden. A mobile filter button (`#doc-search-mobile-filter-btn`) appears, which opens a slide-in drawer (`#doc-search-drawer`). The drawer contains a duplicate Sort selector (as a dropdown select) and the facet checkboxes/selectors. When "Apply filters" is clicked, drawer states are synced back to the hidden sidebar states, and the query is re-filtered.
 
