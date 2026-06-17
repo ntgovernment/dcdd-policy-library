@@ -1189,3 +1189,58 @@ tr.doc-search-row--moving {
     flex-shrink: 0;
   }
 }
+
+/* ── View Preference Modal ────────────────────────────────────────────────── */
+.doc-search-view-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(16, 32, 64, 0.5); /* using var(--clr-text-default) at 50% */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.doc-search-view-modal-overlay[hidden] {
+  display: none !important;
+}
+
+.doc-search-view-modal {
+  background: var(--clr-bg-default, #fff);
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.doc-search-view-modal__title {
+  margin: 0;
+  margin-top: 0 !important;
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  color: var(--clr-text-default);
+}
+
+.doc-search-view-modal__desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--clr-text-alt);
+  line-height: 1.5;
+}
+
+.doc-search-view-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+
+

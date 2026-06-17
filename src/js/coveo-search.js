@@ -1861,6 +1861,7 @@
     var $btn = $(this);
     var $col = $("#doc-search-results-col");
     var tableNow = $col.attr("data-view") === "table";
+    var newView = tableNow ? "card" : "table";
 
     if (tableNow) {
       $col.attr("data-view", "card");
@@ -1870,6 +1871,21 @@
       $btn.attr("aria-pressed", "true");
     }
     renderPage(1);
+
+    // Show the modal each time the view is toggled
+    $("#doc-search-view-modal-overlay").removeAttr("hidden");
+  });
+
+  // ── Event: View preference modal ─────────────────────────────────────────────
+  $(document).on("click", "#doc-search-view-save-btn", function () {
+    var currentView = $("#doc-search-results-col").attr("data-view");
+    localStorage.setItem("docSearchView", currentView);
+    $("#doc-search-view-modal-overlay").attr("hidden", true);
+  });
+
+  $(document).on("click", "#doc-search-view-dont-save-btn", function () {
+    localStorage.removeItem("docSearchView");
+    $("#doc-search-view-modal-overlay").attr("hidden", true);
   });
 
   // ── Reset table view on mobile ────────────────────────────────────────────────
@@ -1899,6 +1915,17 @@
     if (urlSort) {
       currentSort = urlSort;
       $('select[name="doc-search-sort"]').val(urlSort);
+    }
+
+    // Restore view preference from localStorage
+    var savedView = localStorage.getItem("docSearchView");
+    if (savedView === "table" || savedView === "card") {
+      // Don't restore table view on mobile viewports
+      if (savedView === "table" && window.matchMedia("(max-width: 900px)").matches) {
+        savedView = "card";
+      }
+      $("#doc-search-results-col").attr("data-view", savedView);
+      $("#doc-search-view-toggle").attr("aria-pressed", savedView === "table" ? "true" : "false");
     }
 
     // Pre-fill search input if present
