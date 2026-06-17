@@ -1870,10 +1870,11 @@
       $col.attr("data-view", "table");
       $btn.attr("aria-pressed", "true");
     }
+    
+    // Auto-save the view preference instantly
+    localStorage.setItem("docSearchView", newView);
+    
     renderPage(1);
-
-    // Show the modal each time the view is toggled
-    $("#doc-search-view-modal-overlay").removeAttr("hidden");
   });
 
   // ── Event: View preference modal ─────────────────────────────────────────────
