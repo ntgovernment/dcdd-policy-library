@@ -1137,6 +1137,11 @@ tr.doc-search-row--moving {
     display: none;
   }
 
+  /* Hide inline sort on mobile — drawer sort is used instead */
+  .doc-search-filter-group--sort-inline {
+    display: none;
+  }
+
   /* Show the mobile filter button */
   .doc-search-mobile-filter-btn {
     display: flex;
