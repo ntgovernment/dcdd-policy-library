@@ -770,7 +770,7 @@
       "#doc-search-category-filters",
       activeCategoryFilters,
     );
-    buildDropdownFacet("resourceowner", "#doc-search-owner", activeOwnerFilter);
+    buildDropdownFacet(results, "resourceowner", "#doc-search-owner", activeOwnerFilter);
   }
 
   /**
@@ -910,7 +910,17 @@
     }
   }
 
-  function buildDropdownFacet(field, containerId, activeValue) {
+  function buildDropdownFacet(results, field, containerId, activeValue) {
+    var counts = {};
+    results.forEach(function (r) {
+      var val = (r.raw || {})[field];
+      if (val) {
+        splitFieldValues(val).forEach(function (v) {
+          counts[v] = (counts[v] || 0) + 1;
+        });
+      }
+    });
+
     var masterKeys = {};
     masterResults.forEach(function (r) {
       var val = (r.raw || {})[field];
@@ -930,8 +940,11 @@
     $container.append('<option value="">All owners</option>');
 
     keys.forEach(function (key) {
+      var count = counts[key] || 0;
       var selected = (key === activeValue) ? " selected" : "";
-      var $option = $("<option value=\"" + escAttr(key) + "\"" + selected + ">" + escHtml(key) + "</option>");
+      var disabled = (count === 0 && key !== activeValue) ? " disabled" : "";
+      var displayKey = key + " (" + count + ")";
+      var $option = $("<option value=\"" + escAttr(key) + "\"" + selected + disabled + ">" + escHtml(displayKey) + "</option>");
       $container.append($option);
     });
   }
@@ -1673,7 +1686,7 @@
       "#doc-search-drawer-category-filters",
       activeCategoryFilters,
     );
-    buildDropdownFacet("resourceowner", "#doc-search-drawer-owner", activeOwnerFilter);
+    buildDropdownFacet(allResults, "resourceowner", "#doc-search-drawer-owner", activeOwnerFilter);
     $('select[name="doc-search-drawer-sort"]').val(currentSort);
   }
 

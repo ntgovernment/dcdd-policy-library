@@ -344,7 +344,11 @@ document-library/
 │
 ├── scripts/
 │   └── generate-collection-pages.js         # ★ Generates index.html + collection/*.html for GitHub Pages (step 3 of npm run build)
+├── .agents/
+│   └── workflows/                            # AI agent workflows (e.g., update-docs)
 ├── .github/
+│   ├── copilot-instructions.md               # AI coding assistant conventions & instructions
+│   ├── prompts/                              # AI workflow prompt definitions
 │   └── workflows/
 │       └── deploy.yml                        # GitHub Actions: build + assemble + deploy to GitHub Pages on push to main
 │
