@@ -56,11 +56,11 @@
       .ntgc-search-section__submit-btn     icon submit button
       .ntgc-search-section__icon-container icon wrapper
         data-colour="Black"             icon colour token
-      .ntgc-search-section__icon           Font Awesome search icon (fal fa-search)
+      .ntgc-search-section__icon           Font Awesome search icon span (fal fa-search), rendered at 20px
 
     DEPENDENCIES
     ────────────
-    • Font Awesome (fal fa-search icon class) must be loaded on the page.
+    • Font Awesome Pro 5 CSS (for .fal.fa-search) must be loaded on the page.
     • coveo-search.js (src/js/coveo-search.js) must be loaded on the page
       for the JS-driven submit redirect and pre-fill behaviour.
     • jQuery must be loaded before coveo-search.js.
@@ -72,20 +72,20 @@
     src/css/search-widget.css — component styles
 -->
 <form action="" method="get" autocomplete="off" id="policy-search-form" name="policy-search-form">
-    <div class="ntgc-search-section">
-        <div class="ntgc-search-section__container">
-            <div class="ntgc-search-section__input-wrapper" data-state="Default" data-variant="Secondary">
-                <div class="ntgc-search-section__input-field">
-                    <label class="sr-only" for="search">Search</label>
-                    <input type="text" name="searchterm" id="search" class="ntgc-search-section__text-input"
-                        placeholder="Enter your search terms" value="">
-                    <button class="ntgc-search-section__submit-btn" type="submit" aria-label="Search">
-                        <div class="ntgc-search-section__icon-container" data-colour="Black">
-                            <span class="fal fa-search ntgc-search-section__icon"></span>
-                        </div>
-                    </button>
-                </div>
+  <div class="ntgc-search-section">
+    <div class="ntgc-search-section__container">
+      <div class="ntgc-search-section__input-wrapper" data-state="Default" data-variant="Secondary">
+        <div class="ntgc-search-section__input-field">
+          <label class="sr-only" for="search">Search</label>
+          <input type="text" name="searchterm" id="search" class="ntgc-search-section__text-input"
+            placeholder="Enter your search terms" value="">
+          <button class="ntgc-search-section__submit-btn" type="submit" aria-label="Search">
+            <div class="ntgc-search-section__icon-container" data-colour="Black">
+              <span class="fal fa-search ntgc-search-section__icon"></span>
             </div>
+          </button>
         </div>
+      </div>
     </div>
+  </div>
 </form>
