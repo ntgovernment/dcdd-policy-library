@@ -51,9 +51,34 @@ npm run dev
 - Search form markup: `src/search-section.html`
 - Search results layout: `src/search-results.html`
 - Search logic: `src/js/coveo-search.js`
+- Search view metadata patch (standalone): `src/js/view-preference-metadata-patch.js`
 - Search styles: `src/css/search-widget.css`
 - Collection styles: `src/css/collection-page.css`
 - Shared tokens: `src/css/tokens.css`
+
+## View preference metadata patch (standalone)
+
+This repo includes a standalone script to persist the search view preference to Squiz user metadata:
+
+- File: `src/js/view-preference-metadata-patch.js`
+- Metadata field: `#969752` (`user.view-preference`)
+- Canonical values saved: `grid` (default) and `table`
+- Local compatibility key: `docSearchView` (`card`/`table`) remains in use
+
+Behavior:
+
+- Reads preference from user metadata on load (cross-device restore).
+- Applies the view state to the existing search UI toggle.
+- Writes changes back to metadata when user toggles view or clicks save.
+- Uses `grid` as default when no metadata value exists.
+- On mobile (`<=900px`), keeps UI in card mode while preserving the saved preference.
+
+Integration options:
+
+1. Bundle it into `dist/search-page.js` by importing it in `src/search-page.js`.
+2. Or include it as a separate script in Matrix after the main search/profile scripts.
+
+The script is standalone (IIFE) and can be merged into `global-v2.js` later if desired.
 
 ## Matrix custom content slot
 

@@ -296,7 +296,28 @@ git push
 ```js
 import "./css/search-widget.css"; // widget styles (compiled → dist/search-page.css)
 import "./js/coveo-search.js"; // search logic  (compiled → dist/search-page.js)
+// Optional: import "./js/view-preference-metadata-patch.js";
+// Persists search view preference to user metadata field #969752.
 ```
+
+### Optional standalone patch: search view metadata persistence
+
+`src/js/view-preference-metadata-patch.js` is a standalone IIFE patch that syncs the search view toggle preference with Squiz user metadata.
+
+- Metadata field ID: `969752` (`user.view-preference`)
+- Persisted values: `grid` (default) or `table`
+- Compatibility key: keeps `localStorage.docSearchView` in `card`/`table` format for existing `coveo-search.js` behavior
+
+Runtime behavior:
+
+1. On load, it reads metadata via `js_api.getMetadata` and applies the resolved preference.
+2. On view toggle/save actions, it writes the new preference via `js_api.setMetadata`.
+3. On mobile (`max-width: 900px`), UI stays in card mode while the saved preference is preserved.
+
+Integration:
+
+- Preferred: import it from `src/search-page.js` so it is bundled into `dist/search-page.js`.
+- Alternative: include it as a separate script in Matrix after main profile/search scripts.
 
 **Collection page — [`src/collection-page.js`](src/collection-page.js)** (built by `vite.collection.config.js`):
 
@@ -323,7 +344,8 @@ document-library/
 │   ├── search-section.html                   # ★ Search form HTML fragment → dist/search-section.html
 │   ├── search-results.html                   # ★ Results/filters HTML fragment → dist/search-results.html
 │   ├── js/
-│   │   └── coveo-search.js                   # ★ Coveo REST API fetch, filtering, pagination, card/table rendering
+│   │   ├── coveo-search.js                   # ★ Coveo REST API fetch, filtering, pagination, card/table rendering
+│   │   └── view-preference-metadata-patch.js # Optional standalone patch: sync view preference to metadata #969752
 │   ├── css/
 │   │   ├── tokens.css                        # ★ Shared CSS custom properties: colours, typography, borders, spacing
 │   │   ├── search-widget.css                 # ★ Search page styles (imports tokens.css)
