@@ -69,6 +69,10 @@ document-library/
 
 ## Conventions & Gotchas
 
+- **Squiz keyword placeholder (`%asset_contents%`)**:
+  - `src/search-results.html` intentionally contains the literal Squiz keyword `%asset_contents%` so CMS editors can manage custom message content.
+  - Treat `%asset_contents%` as a protected token: do not remove it, rename it, escape it, wrap it in templating syntax, or move it unless a task explicitly requests changing keyword placement.
+  - Preserve exact spelling and casing: `%asset_contents%`.
 - **Three-File HTML Synchronization**:
   - `src/search-results.html` is the source template.
   - `index.html` (root) and `search-section-preview.html` are standalone files.
@@ -90,4 +94,3 @@ document-library/
 - **Hiding Empty Badge/Tag Markup**:
   - Empty badges or tags (such as the document type tag `[data-ref="search-result-doctype"]` when no `resourcedoctype` is present) must be hidden using the `hidden` attribute.
   - To ensure elements with `display: inline-flex` (like `.doc-search-result__tag`) are hidden correctly overriding class rules, a specific `.doc-search-result__tag[hidden] { display: none !important; }` rule is declared in CSS.
-
