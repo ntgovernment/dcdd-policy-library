@@ -1554,6 +1554,115 @@
       .replace(/'/g, "&#39;");
   }
 
+  // ── Matrix content relocation ──────────────────────────────────────────────
+  var assetContentsMoved = false;
+  var assetContentsSourceObserver = null;
+  var assetContentsRootObserver = null;
+  var assetContentsObserverTimeoutId = null;
+  var ASSET_CONTENTS_OBSERVER_TIMEOUT_MS = 30000;
+
+  /**
+   * Disconnects observers used for moving #asset-contents content and clears
+   * the timeout guard.
+   */
+  function disconnectAssetContentsObservers() {
+    if (assetContentsSourceObserver) {
+      assetContentsSourceObserver.disconnect();
+      assetContentsSourceObserver = null;
+    }
+    if (assetContentsRootObserver) {
+      assetContentsRootObserver.disconnect();
+      assetContentsRootObserver = null;
+    }
+    if (assetContentsObserverTimeoutId) {
+      window.clearTimeout(assetContentsObserverTimeoutId);
+      assetContentsObserverTimeoutId = null;
+    }
+  }
+
+  /**
+   * Moves all child nodes from #asset-contents into #custom-content.
+   * Returns true only when a move was completed.
+   * @returns {boolean}
+   */
+  function moveAssetContentsIntoCustom() {
+    if (assetContentsMoved) return true;
+
+    var target = document.getElementById("custom-content");
+    var source = document.getElementById("asset-contents");
+
+    if (!target || !source || source === target || !source.firstChild) {
+      return false;
+    }
+
+    while (source.firstChild) {
+      target.appendChild(source.firstChild);
+    }
+
+    assetContentsMoved = true;
+    disconnectAssetContentsObservers();
+    return true;
+  }
+
+  /**
+   * Observes #asset-contents for late CMS injection and moves its children into
+   * #custom-content when available.
+   */
+  function initAssetContentsRelocation() {
+    if (assetContentsMoved) return;
+    if (!document.getElementById("custom-content")) return;
+
+    if (moveAssetContentsIntoCustom()) {
+      return;
+    }
+
+    if (typeof MutationObserver === "undefined") {
+      return;
+    }
+
+    function observeSource(source) {
+      if (!source || assetContentsSourceObserver) return;
+
+      assetContentsSourceObserver = new MutationObserver(function () {
+        moveAssetContentsIntoCustom();
+      });
+
+      assetContentsSourceObserver.observe(source, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    var source = document.getElementById("asset-contents");
+    if (source) {
+      observeSource(source);
+    } else if (document.body) {
+      assetContentsRootObserver = new MutationObserver(function () {
+        var found = document.getElementById("asset-contents");
+        if (!found) return;
+
+        if (assetContentsRootObserver) {
+          assetContentsRootObserver.disconnect();
+          assetContentsRootObserver = null;
+        }
+
+        observeSource(found);
+        moveAssetContentsIntoCustom();
+      });
+
+      assetContentsRootObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    if (!assetContentsObserverTimeoutId) {
+      assetContentsObserverTimeoutId = window.setTimeout(function () {
+        disconnectAssetContentsObservers();
+      }, ASSET_CONTENTS_OBSERVER_TIMEOUT_MS);
+    }
+  }
+
   // ── Core search ──────────────────────────────────────────────────────────────
   /**
    * Executes a search for the given query and renders the results.
@@ -1909,6 +2018,8 @@
 
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
+    initAssetContentsRelocation();
+
     // Read initial state from URL params
     initialQuery = getUrlParam("searchterm") || "";
     var urlSort = getUrlParam("sort");

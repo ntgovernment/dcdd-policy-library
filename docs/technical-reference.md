@@ -93,6 +93,27 @@ Both `dist/search-section.html` and `dist/search-results.html` are **bare HTML f
 
 Both HTML files are copied verbatim from `src/` to `dist/` by the `copy-search-section` Vite plugin — no transformation occurs.
 
+### Matrix custom content relocation (`#asset-contents` → `#custom-content`)
+
+The search results fragment contains a target container:
+
+- `#custom-content` in `src/search-results.html` (propagated to `dist/search-results.html`, `search-section-preview.html`, and generated `index.html`).
+
+At runtime, `src/js/coveo-search.js` initializes a relocation helper that moves child nodes from `#asset-contents` into `#custom-content`.
+This is designed for Squiz Matrix scenarios where the source markup is injected after the page bundle has already executed.
+
+Behaviour summary:
+
+- Tries an immediate move on `$(document).ready(...)`.
+- If `#asset-contents` is not present yet, uses `MutationObserver` to detect late insertion.
+- Once source exists, observes child mutations and moves source children (move, not clone).
+- Uses a one-time completion guard to prevent duplicate moves.
+- Disconnects observers after success, with a bounded timeout fallback (30s) to prevent long-lived observers.
+
+Operational note:
+
+- Keep `#custom-content` in the template for this runtime hook. If the container ID changes, update the selectors in `src/js/coveo-search.js`.
+
 ### Vite plugins
 
 1. **`copy-search-section`** (`closeBundle` hook): after each build, copies `src/search-section.html` → `dist/search-section.html` and `src/search-results.html` → `dist/search-results.html` verbatim, then calls `syncPreviewTemplate()` (see below).

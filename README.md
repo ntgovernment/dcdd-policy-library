@@ -55,6 +55,19 @@ npm run dev
 - Collection styles: `src/css/collection-page.css`
 - Shared tokens: `src/css/tokens.css`
 
+## Matrix custom content slot
+
+The search results template includes `<span id="custom-content"></span>` in `src/search-results.html`.
+
+At runtime, `src/js/coveo-search.js` moves child nodes from `#asset-contents` into `#custom-content`.
+This supports Squiz Matrix content that may be injected after page load.
+
+Implementation details:
+
+- The move is one-time and idempotent (no duplicate moves).
+- If `#asset-contents` is not present immediately, a `MutationObserver` watches for late insertion.
+- Observers disconnect after a successful move, with a safety timeout to avoid long-lived observers.
+
 ## Build commands
 
 ```bash
