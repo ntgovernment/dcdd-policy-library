@@ -726,7 +726,11 @@
   function formatFileMetaHtml(raw) {
     var metaText = formatFileMeta(raw);
     if (!metaText) return "";
-    return '<span class="doc-search-result__file-meta">' + escHtml(metaText) + '</span>';
+    return (
+      '<span class="doc-search-result__file-meta">' +
+      escHtml(metaText) +
+      "</span>"
+    );
   }
 
   // ── View helpers ─────────────────────────────────────────────────────────────
@@ -770,7 +774,12 @@
       "#doc-search-category-filters",
       activeCategoryFilters,
     );
-    buildDropdownFacet(results, "resourceowner", "#doc-search-owner", activeOwnerFilter);
+    buildDropdownFacet(
+      results,
+      "resourceowner",
+      "#doc-search-owner",
+      activeOwnerFilter,
+    );
   }
 
   /**
@@ -941,10 +950,19 @@
 
     keys.forEach(function (key) {
       var count = counts[key] || 0;
-      var selected = (key === activeValue) ? " selected" : "";
-      var disabled = (count === 0 && key !== activeValue) ? " disabled" : "";
+      var selected = key === activeValue ? " selected" : "";
+      var disabled = count === 0 && key !== activeValue ? " disabled" : "";
       var displayKey = key + " (" + count + ")";
-      var $option = $("<option value=\"" + escAttr(key) + "\"" + selected + disabled + ">" + escHtml(displayKey) + "</option>");
+      var $option = $(
+        '<option value="' +
+          escAttr(key) +
+          '"' +
+          selected +
+          disabled +
+          ">" +
+          escHtml(displayKey) +
+          "</option>",
+      );
       $container.append($option);
     });
   }
@@ -1004,8 +1022,13 @@
    * A clearTimeout guard prevents stacked animations on rapid filter toggles.
    */
   function updateMobileFilterCount() {
-    var total = activeTypeFilters.size + activeCategoryFilters.size + (activeOwnerFilter ? 1 : 0);
-    $("#doc-search-filter-count, #doc-search-drawer-filter-count").text(total > 0 ? "(" + total + ")" : "");
+    var total =
+      activeTypeFilters.size +
+      activeCategoryFilters.size +
+      (activeOwnerFilter ? 1 : 0);
+    $("#doc-search-filter-count, #doc-search-drawer-filter-count").text(
+      total > 0 ? "(" + total + ")" : "",
+    );
   }
 
   /**
@@ -1223,7 +1246,7 @@
         .html(
           '<span class="doc-search-result__title-text">' +
             escHtml(raw.resourcefriendlytitle || result.title || "") +
-            "</span>"
+            "</span>",
         );
       $item
         .find('[data-ref="search-result-file-meta-container"]')
@@ -1795,7 +1818,12 @@
       "#doc-search-drawer-category-filters",
       activeCategoryFilters,
     );
-    buildDropdownFacet(allResults, "resourceowner", "#doc-search-drawer-owner", activeOwnerFilter);
+    buildDropdownFacet(
+      allResults,
+      "resourceowner",
+      "#doc-search-drawer-owner",
+      activeOwnerFilter,
+    );
     $('select[name="doc-search-drawer-sort"]').val(currentSort);
   }
 
@@ -1979,10 +2007,10 @@
       $col.attr("data-view", "table");
       $btn.attr("aria-pressed", "true");
     }
-    
+
     // Auto-save the view preference instantly
     localStorage.setItem("docSearchView", newView);
-    
+
     renderPage(1);
   });
 
@@ -2033,11 +2061,17 @@
     var savedView = localStorage.getItem("docSearchView");
     if (savedView === "table" || savedView === "card") {
       // Don't restore table view on mobile viewports
-      if (savedView === "table" && window.matchMedia("(max-width: 900px)").matches) {
+      if (
+        savedView === "table" &&
+        window.matchMedia("(max-width: 900px)").matches
+      ) {
         savedView = "card";
       }
       $("#doc-search-results-col").attr("data-view", savedView);
-      $("#doc-search-view-toggle").attr("aria-pressed", savedView === "table" ? "true" : "false");
+      $("#doc-search-view-toggle").attr(
+        "aria-pressed",
+        savedView === "table" ? "true" : "false",
+      );
     }
 
     // Pre-fill search input if present

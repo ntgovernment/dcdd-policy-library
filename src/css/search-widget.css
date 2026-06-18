@@ -277,6 +277,18 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
+/* Keep Matrix-injected custom content constrained to the results column width */
+#custom-content {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#custom-content > * {
+  max-width: 100%;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    CARD VIEW  (default — data-view="card" on .doc-search-results-col)
    ══════════════════════════════════════════════════════════════════════════ */

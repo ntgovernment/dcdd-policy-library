@@ -818,7 +818,7 @@ Important: `src/search-results.html` includes the literal Squiz keyword `%asset_
 | ID                                    | Purpose                                                                                                                                                        |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `#policy-search-form`                 | Search form — submit triggers `runSearch()`                                                                                                                    |
-| `#search`                             | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                              |
+| `#search`                             | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                |
 | `#doc-search-results-col`             | Results column; `data-view` attr controls card/table                                                                                                           |
 | `#initialLoadingSpinner`              | Shown during fetch; hidden on response                                                                                                                         |
 | `#doc-search-user-message`            | Error / no-results message                                                                                                                                     |
@@ -870,15 +870,15 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 
 #### Search form (`ntgc-search-section`)
 
-| Class                                  | Element                                         |
-| -------------------------------------- | ----------------------------------------------- |
-| `.ntgc-search-section`                 | Outer wrapper — full-width, centred, padded     |
-| `.ntgc-search-section__container`      | Constrained inner container (max-width 1232px)  |
-| `.ntgc-search-section__input-wrapper`  | Input + button row (max-width 640px, outlined)  |
-| `.ntgc-search-section__input-field`    | Flex row — white background, overflow hidden    |
-| `.ntgc-search-section__text-input`     | `<input type="text">` — unstyled                |
-| `.ntgc-search-section__submit-btn`     | `<button type="submit">` — transparent          |
-| `.ntgc-search-section__icon-container` | 24×24 icon wrapper                              |
+| Class                                  | Element                                                           |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| `.ntgc-search-section`                 | Outer wrapper — full-width, centred, padded                       |
+| `.ntgc-search-section__container`      | Constrained inner container (max-width 1232px)                    |
+| `.ntgc-search-section__input-wrapper`  | Input + button row (max-width 640px, outlined)                    |
+| `.ntgc-search-section__input-field`    | Flex row — white background, overflow hidden                      |
+| `.ntgc-search-section__text-input`     | `<input type="text">` — unstyled                                  |
+| `.ntgc-search-section__submit-btn`     | `<button type="submit">` — transparent                            |
+| `.ntgc-search-section__icon-container` | 24×24 icon wrapper                                                |
 | `.ntgc-search-section__icon`           | Font Awesome search icon span (`fal fa-search`), rendered at 20px |
 
 #### Results widget (`doc-search-*`)
