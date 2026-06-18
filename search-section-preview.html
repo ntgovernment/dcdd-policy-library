@@ -1285,14 +1285,16 @@
                     </button>
         
                     <!-- Governance contact callout -->
-                    <div class="ntgc-callout ntgc-my-8">
+                    <!-- <div class="ntgc-callout ntgc-my-8">
                         <div>
                             <p>Can't find what you're looking for or need a document added? Contact&nbsp;<a
                                     href="mailto:governance.dcdd@nt.gov.au">governance.dcdd@nt.gov.au</a></p>
                             <p>Find whole-of-government policies on <a href="https://ntgcentral.nt.gov.au/policy-library">NTG
                                     Central</a>.</p>
                         </div>
-                    </div>
+                    </div> -->
+        
+                    %asset_contents%
         
                     <!-- Results header -->
                     <div class="doc-search-results-header">
@@ -1391,7 +1393,8 @@
         
                 <!-- Drawer header -->
                 <div class="doc-search-drawer__header">
-                    <span class="doc-search-drawer__title">Filter and sort <span id="doc-search-drawer-filter-count"></span></span>
+                    <span class="doc-search-drawer__title">Filter and sort <span
+                            id="doc-search-drawer-filter-count"></span></span>
                     <button type="button" class="doc-search-drawer__close" id="doc-search-drawer-close"
                         aria-label="Close filters">
                         <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -1466,9 +1469,9 @@
             <div class="doc-search-result__header">
                 <a class="doc-search-result__title-link" href="#" data-ref="search-result-link">
                     <span data-ref="search-result-title"></span>
-                    <svg class="doc-search-result__ext-icon" data-ref="search-result-extlink" hidden aria-hidden="true" width="12"
-                        height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
+                    <svg class="doc-search-result__ext-icon" data-ref="search-result-extlink" hidden aria-hidden="true"
+                        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                         <polyline points="15 3 21 3 21 9" />
                         <line x1="10" y1="14" x2="21" y2="3" />
@@ -1501,6 +1504,20 @@
                 <div class="doc-search-result__updated">Last updated: <span data-ref="search-result-last-updated"></span></div>
             </div>
         </li>
+        
+        <!-- Save View Preference Modal -->
+        <div class="doc-search-view-modal-overlay" id="doc-search-view-modal-overlay" hidden>
+            <div class="doc-search-view-modal" role="dialog" aria-labelledby="doc-search-view-modal-title" aria-modal="true">
+                <h3 id="doc-search-view-modal-title" class="doc-search-view-modal__title">Save your preferred view?</h3>
+                <p class="doc-search-view-modal__desc">Choose whether to remember your selected table or card view for future
+                    visits on this device. On mobile, the responsive mobile view will still be used.</p>
+                <div class="doc-search-view-modal__actions">
+                    <button type="button" class="ntgc-btn" id="doc-search-view-save-btn">Save preference</button>
+                    <button type="button" class="ntgc-btn ntgc-btn--secondary" id="doc-search-view-dont-save-btn">Don't
+                        save</button>
+                </div>
+            </div>
+        </div>
         
         <!-- Save View Preference Modal -->
         <div class="doc-search-view-modal-overlay" id="doc-search-view-modal-overlay" hidden>
