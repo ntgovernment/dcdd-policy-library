@@ -1021,13 +1021,53 @@
    *
    * A clearTimeout guard prevents stacked animations on rapid filter toggles.
    */
-  function updateMobileFilterCount() {
-    var total =
-      activeTypeFilters.size +
-      activeCategoryFilters.size +
-      (activeOwnerFilter ? 1 : 0);
-    $("#doc-search-filter-count, #doc-search-drawer-filter-count").text(
-      total > 0 ? "(" + total + ")" : "",
+
+  /**
+   * Computes the number of items that would match the current drawer filter
+   * selections (without mutating module state) and updates the live count
+   * element inside the drawer footer.
+   */
+  function updateDrawerItemCount() {
+    var drawerTypeFilters = new Set();
+    var drawerCategoryFilters = new Set();
+    $("#doc-search-drawer [data-facet]").each(function () {
+      if ($(this).is(":checked")) {
+        var field = $(this).data("facet");
+        var value = $(this).data("value");
+        if (field === "resourcedoctype") {
+          drawerTypeFilters.add(value);
+        } else {
+          drawerCategoryFilters.add(value);
+        }
+      }
+    });
+    var drawerOwner = $('select[name="doc-search-drawer-owner"]').val() || "";
+
+    var count = allResults.filter(function (r) {
+      var raw = r.raw || {};
+      if (drawerOwner) {
+        var owners = splitFieldValues(raw.resourceowner || "");
+        if (owners.indexOf(drawerOwner) === -1) return false;
+      }
+      if (
+        drawerTypeFilters.size > 0 &&
+        !drawerTypeFilters.has(raw.resourcedoctype)
+      ) {
+        return false;
+      }
+      if (
+        drawerCategoryFilters.size > 0 &&
+        !splitFieldValues(raw.category || "").some(function (v) {
+          return drawerCategoryFilters.has(v);
+        })
+      ) {
+        return false;
+      }
+      return true;
+    }).length;
+
+    $("#doc-search-drawer-item-count").text(
+      count === 1 ? "1 item found" : count + " items found",
     );
   }
 
@@ -1150,7 +1190,6 @@
     if (leavingIds.size === 0) {
       var firstPos = snapshotPositions($container, stayingIds);
       renderPage(1, enteringIds);
-      updateMobileFilterCount();
       flipStayingItems($container, firstPos, stayingIds, isTable);
       filterAnimTimeout = setTimeout(function () {
         $("[data-result-id]")
@@ -1174,7 +1213,6 @@
     // After leave animation, rebuild with enter + FLIP animations
     filterAnimTimeout = setTimeout(function () {
       renderPage(1, enteringIds);
-      updateMobileFilterCount();
       flipStayingItems($container, firstPos, stayingIds, isTable);
 
       filterAnimTimeout = setTimeout(function () {
@@ -1830,6 +1868,7 @@
   /** Opens the mobile filter drawer. */
   function openDrawer() {
     buildDrawerFilters();
+    updateDrawerItemCount();
     $("#doc-search-drawer").addClass("is-open").attr("aria-hidden", "false");
     $("#doc-search-drawer-overlay")
       .addClass("is-open")
@@ -1909,7 +1948,15 @@
     $("#doc-search-drawer [data-facet]").prop("checked", false);
     $('select[name="doc-search-drawer-sort"]').val("relevancy");
     $('select[name="doc-search-drawer-owner"]').val("");
+    updateDrawerItemCount();
   });
+
+  // Update drawer item count when owner select changes inside drawer
+  $(document).on(
+    "change",
+    'select[name="doc-search-drawer-owner"]',
+    updateDrawerItemCount,
+  );
 
   // Clear all on sidebar (applies immediately)
   $(document).on("click", "#doc-search-sidebar-clear", function () {
@@ -1926,6 +1973,7 @@
     var $cb = $(this);
     // Inside the drawer, changes are applied only via the "Apply filters" button
     if ($cb.closest("#doc-search-drawer").length) {
+      updateDrawerItemCount();
       return;
     }
     var field = $cb.data("facet");

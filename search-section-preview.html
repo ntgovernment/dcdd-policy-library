@@ -1273,8 +1273,7 @@
                                     </clipPath>
                                 </defs>
                             </svg>
-                            <span class="doc-search-mobile-filter-btn__label">Filter and sort <span
-                                    class="doc-search-mobile-filter-btn__count" id="doc-search-filter-count"></span></span>
+                            <span class="doc-search-mobile-filter-btn__label">Filter and sort</span>
                         </span>
                         <svg class="doc-search-mobile-filter-btn__chevron" aria-hidden="true" width="15" height="24"
                             viewBox="0 0 15 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1284,12 +1283,14 @@
                         </svg>
                     </button>
         
+                    <!-- Asset contents -->
+                    <span id="custom-content">
+        
+                    </span>
+        
                     <!-- Results header -->
                     <div class="doc-search-results-header">
-                        <!-- Asset contents -->
-                        <span id="custom-content">
         
-                        </span>
                         <p class="doc-search-results-summary" id="doc-search-results-summary"></p>
                         <div class="doc-search-results-controls">
                             <button type="button" class="doc-search-view-toggle" id="doc-search-view-toggle"
@@ -1385,8 +1386,7 @@
         
                 <!-- Drawer header -->
                 <div class="doc-search-drawer__header">
-                    <span class="doc-search-drawer__title">Filter and sort <span
-                            id="doc-search-drawer-filter-count"></span></span>
+                    <span class="doc-search-drawer__title">Filter and sort</span>
                     <button type="button" class="doc-search-drawer__close" id="doc-search-drawer-close"
                         aria-label="Close filters">
                         <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -1447,6 +1447,7 @@
         
                 <!-- Drawer footer -->
                 <div class="doc-search-drawer__footer">
+                    <p class="doc-search-drawer__item-count" id="doc-search-drawer-item-count"></p>
                     <button type="button" class="doc-search-drawer__apply" id="doc-search-drawer-apply">
                         Apply filters
                     </button>
@@ -1496,6 +1497,48 @@
                 <div class="doc-search-result__updated">Last updated: <span data-ref="search-result-last-updated"></span></div>
             </div>
         </li>
+        
+        <!-- Save View Preference Modal -->
+        <div class="doc-search-view-modal-overlay" id="doc-search-view-modal-overlay" hidden>
+            <div class="doc-search-view-modal" role="dialog" aria-labelledby="doc-search-view-modal-title" aria-modal="true">
+                <h3 id="doc-search-view-modal-title" class="doc-search-view-modal__title">Save your preferred view?</h3>
+                <p class="doc-search-view-modal__desc">Choose whether to remember your selected table or card view for future
+                    visits on this device. On mobile, the responsive mobile view will still be used.</p>
+                <div class="doc-search-view-modal__actions">
+                    <button type="button" class="ntgc-btn" id="doc-search-view-save-btn">Save preference</button>
+                    <button type="button" class="ntgc-btn ntgc-btn--secondary" id="doc-search-view-dont-save-btn">Don't
+                        save</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Save View Preference Modal -->
+        <div class="doc-search-view-modal-overlay" id="doc-search-view-modal-overlay" hidden>
+            <div class="doc-search-view-modal" role="dialog" aria-labelledby="doc-search-view-modal-title" aria-modal="true">
+                <h3 id="doc-search-view-modal-title" class="doc-search-view-modal__title">Save your preferred view?</h3>
+                <p class="doc-search-view-modal__desc">Choose whether to remember your selected table or card view for future
+                    visits on this device. On mobile, the responsive mobile view will still be used.</p>
+                <div class="doc-search-view-modal__actions">
+                    <button type="button" class="ntgc-btn" id="doc-search-view-save-btn">Save preference</button>
+                    <button type="button" class="ntgc-btn ntgc-btn--secondary" id="doc-search-view-dont-save-btn">Don't
+                        save</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Save View Preference Modal -->
+        <div class="doc-search-view-modal-overlay" id="doc-search-view-modal-overlay" hidden>
+            <div class="doc-search-view-modal" role="dialog" aria-labelledby="doc-search-view-modal-title" aria-modal="true">
+                <h3 id="doc-search-view-modal-title" class="doc-search-view-modal__title">Save your preferred view?</h3>
+                <p class="doc-search-view-modal__desc">Choose whether to remember your selected table or card view for future
+                    visits on this device. On mobile, the responsive mobile view will still be used.</p>
+                <div class="doc-search-view-modal__actions">
+                    <button type="button" class="ntgc-btn" id="doc-search-view-save-btn">Save preference</button>
+                    <button type="button" class="ntgc-btn ntgc-btn--secondary" id="doc-search-view-dont-save-btn">Don't
+                        save</button>
+                </div>
+            </div>
+        </div>
         
         <!-- Save View Preference Modal -->
         <div class="doc-search-view-modal-overlay" id="doc-search-view-modal-overlay" hidden>
