@@ -844,8 +844,25 @@ tr.doc-search-row--moving {
 /* ── No results state ─────────────────────────────────────────────────────── */
 .doc-search-no-results {
   padding: 32px 0;
+}
+
+.doc-search-no-results__heading {
+  font-size: 20px !important;
+  font-weight: var(--font-weight-bold);
+  color: var(--clr-text-default);
+  margin: 0 0 8px !important;
+}
+
+.doc-search-no-results__detail {
   font-size: var(--font-size-sm);
-  color: var(--clr-text-alt);
+  color: var(--clr-text-default);
+  margin: 0 0 4px;
+}
+
+.doc-search-no-results__suggestion {
+  font-size: var(--font-size-sm);
+  color: var(--clr-text-default);
+  margin: 0;
 }
 
 /* ── Sort dropdown ───────────────────────────────────────────────────────── */

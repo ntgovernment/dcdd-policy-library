@@ -88,7 +88,7 @@
  *   #doc-search-view-toggle       button; aria-pressed="true" = table view active
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
  *   #doc-search-category-filters  <ul> receives Category facet checkboxes
- *   #doc-search-user-message      receives error / no-results message strings
+ *   #doc-search-user-message      receives error / no-results HTML (see buildNoResultsHtml())
  *   .search-template[hidden]      card template element, cloned per result
  *
  * Card template data-ref slots (inside .search-template):
@@ -1448,7 +1448,7 @@
     var $summary = $("#doc-search-results-summary");
 
     if (total === 0) {
-      $summary.text("No results found.");
+      $summary.text("");
     } else {
       $summary.text(
         "Showing " +
@@ -1565,12 +1565,30 @@
 
   // ── User message (error / no results) ────────────────────────────────────────
   /**
-   * Sets the #doc-search-user-message text. Pass an empty string or omit `msg`
-   * to clear any existing message.
-   * @param {string} [msg]  Text to display (e.g. an error string or "No results found.").
+   * Sets the #doc-search-user-message content. Pass an empty string or omit `msg`
+   * to clear any existing message. Accepts an HTML string.
+   * @param {string} [msg]  HTML to display (e.g. an error string or no-results block).
    */
   function setUserMessage(msg) {
-    $("#doc-search-user-message").text(msg || "");
+    $("#doc-search-user-message").html(msg || "");
+  }
+
+  /**
+   * Builds the structured "No results" HTML block shown when a query yields
+   * zero results.  Includes a heading, the bolded query term, and a suggestion.
+   * @param {string} query  The search term that returned no results.
+   * @returns {string} HTML string for the no-results state.
+   */
+  function buildNoResultsHtml(query) {
+    return (
+      '<div class="doc-search-no-results">' +
+      '<h2 class="doc-search-no-results__heading">No results</h2>' +
+      '<p class="doc-search-no-results__detail">There were no results for <strong>' +
+      escHtml(query) +
+      "</strong></p>" +
+      '<p class="doc-search-no-results__suggestion">Try refining your search with some different key words</p>' +
+      "</div>"
+    );
   }
 
   // ── HTML helpers ─────────────────────────────────────────────────────────────
@@ -1817,9 +1835,7 @@
 
         if (allResults.length === 0) {
           setUserMessage(
-            query
-              ? 'No results found for "' + query + '".'
-              : "No documents found.",
+            query ? buildNoResultsHtml(query) : "No documents found.",
           );
           buildFilters(allResults);
           return;

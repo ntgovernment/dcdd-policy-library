@@ -449,21 +449,21 @@ All CSS custom properties (design tokens) are declared in **[`src/css/tokens.css
 
 ### Colour tokens
 
-| Token                    | Value     | Usage                                                                                                  |
-| ------------------------ | --------- | ------------------------------------------------------------------------------------------------------ |
-| `--clr-primary`          | `#343741` | NTG body text                                                                                          |
-| `--clr-text-default`     | `#102040` | Widget body text, links (`--clr-link-default` is an alias)                                             |
-| `--clr-link-default`     | `#102040` | All link colours                                                                                       |
+| Token                    | Value     | Usage                                                                                                    |
+| ------------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
+| `--clr-primary`          | `#343741` | NTG body text                                                                                            |
+| `--clr-text-default`     | `#102040` | Widget body text, links (`--clr-link-default` is an alias)                                               |
+| `--clr-link-default`     | `#102040` | All link colours                                                                                         |
 | `--clr-tertiary`         | `#167abe` | Search result title links, table title links, collection links, source row links, "Apply filters" button |
-| `--clr-text-alt`         | `#384560` | Secondary text, input placeholder                                                                      |
-| `--clr-text-emphasis`    | `#208820` | Emphasis / positive text (green)                                                                       |
-| `--clr-border-subtle`    | `#d0e0e0` | Borders, outlines                                                                                      |
-| `--clr-bg-default`       | `#ffffff` | Input background                                                                                       |
-| `--clr-bg-shade`         | `#f5f5f7` | Card/item background (collection page)                                                                 |
-| `--clr-bg-shade-alt`     | `#ecf0f0` | Results area background (search widget)                                                                |
-| `--clr-icon-subtle`      | `#878f9f` | Toggle pill (off state)                                                                                |
-| `--clr-icon-default`     | `#208820` | Prev/Next pagination icon hover                                                                        |
-| `--clr-surface-selected` | `#107810` | Active pagination page / toggle (on)                                                                   |
+| `--clr-text-alt`         | `#384560` | Secondary text, input placeholder                                                                        |
+| `--clr-text-emphasis`    | `#208820` | Emphasis / positive text (green)                                                                         |
+| `--clr-border-subtle`    | `#d0e0e0` | Borders, outlines                                                                                        |
+| `--clr-bg-default`       | `#ffffff` | Input background                                                                                         |
+| `--clr-bg-shade`         | `#f5f5f7` | Card/item background (collection page)                                                                   |
+| `--clr-bg-shade-alt`     | `#ecf0f0` | Results area background (search widget)                                                                  |
+| `--clr-icon-subtle`      | `#878f9f` | Toggle pill (off state)                                                                                  |
+| `--clr-icon-default`     | `#208820` | Prev/Next pagination icon hover                                                                          |
+| `--clr-surface-selected` | `#107810` | Active pagination page / toggle (on)                                                                     |
 
 ### Typography tokens
 
@@ -749,8 +749,8 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 | `search-result-collection-link` | `raw.collectionurl` — set as `href`; `raw.collectionname` is the link text. Row is hidden (not this element) when either field is absent or `"none"`.                                                               |
 | `search-result-doctype`         | `raw.resourcedoctype` (rendered as a tag `<span>` — hidden via `hidden` attribute when absent/empty)                                                                                                                |
 | `search-result-last-updated`    | `raw.resourceupdated` — formatted by `formatDate()` as `D\u00a0MMMM YYYY` (e.g. `5 March 2026`); non-breaking space prevents day/month line-break                                                                   |
-| `search-result-page-row`        | Source row container `<div>` — hidden by default; unhidden when `raw.assetassetid` is present, then re-hidden if upstream link resolution finds no pages                                                              |
-| `search-result-page-label`      | `<span>` containing `Source:` (singular) or `Sources:` (plural) — JS changes text to `Sources:` when more than one link is resolved                                                                                       |
+| `search-result-page-row`        | Source row container `<div>` — hidden by default; unhidden when `raw.assetassetid` is present, then re-hidden if upstream link resolution finds no pages                                                            |
+| `search-result-page-label`      | `<span>` containing `Source:` (singular) or `Sources:` (plural) — JS changes text to `Sources:` when more than one link is resolved                                                                                 |
 | `search-result-page-ids`        | `<span>` populated with `<a>` links to resolved parent pages (comma-separated, HTML generated by `renderPageLinksHtml()`), or left empty (row hidden) when none found                                               |
 
 **Source row (card view) — upstream link resolution:**
@@ -812,7 +812,7 @@ Important: `src/search-results.html` includes the literal Squiz keyword `%asset_
 - `.doc-search-outer` / `.doc-search-layout` — outer wrapper and two-column flex container
 - `#doc-search-results-col` — results column; `data-view="card"` or `data-view="table"` switches the active view
 - `#initialLoadingSpinner` — CSS ring spinner; visible while fetch is in progress
-- `#doc-search-user-message` — error / no-results message area
+- `#doc-search-user-message` — error / no-results message area; when a query yields zero results, `buildNoResultsHtml(query)` injects a structured block with a heading ("No results"), the bolded search term, and a suggestion to refine the search
 - `#doc-search-results-summary` — "Showing X–Y of N results" text
 - `#doc-search-mobile-filter-btn` — "Filters" pill button (hidden on desktop, visible ≤ 900 px); slides in the filter drawer
 - `#doc-search-view-toggle` — card/table toggle pill button (`aria-pressed="true"` = table active)
@@ -837,34 +837,34 @@ Important: `src/search-results.html` includes the literal Squiz keyword `%asset_
 
 ## Key Element IDs
 
-| ID                                    | Purpose                                                                                                                                                        |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#policy-search-form`                 | Search form — submit triggers `runSearch()`                                                                                                                    |
-| `#search`                             | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                |
-| `#doc-search-results-col`             | Results column; `data-view` attr controls card/table                                                                                                           |
-| `#initialLoadingSpinner`              | Shown during fetch; hidden on response                                                                                                                         |
-| `#doc-search-user-message`            | Error / no-results message                                                                                                                                     |
-| `#doc-search-results-summary`         | "Showing X–Y of N results" line                                                                                                                                |
-| `#doc-search-sort`                    | Desktop sort dropdown select element `<select>`; change event triggers `applySort()` + `applyFilters()` (no API call)                                          |
-| `#doc-search-mobile-filter-btn`       | Mobile-only "Filters" pill button (hidden on desktop); opens the filter drawer                                                                                 |
-| `#doc-search-view-toggle`             | Card/table toggle pill button                                                                                                                                  |
-| `#doc-search-results-list`            | Card results `<ul>`                                                                                                                                            |
-| `#doc-search-table-body`              | Table results `<tbody>`                                                                                                                                        |
-| `#doc-search-pagination`              | Pagination `<nav>`                                                                                                                                             |
-| `#doc-search-sidebar`                 | Filter sidebar `<aside>` (hidden on mobile)                                                                                                                    |
-| `#doc-search-sidebar-clear`           | "Clear all" button in desktop sidebar                                                                                                                          |
-| `#doc-search-type-filters`            | Type facet checkbox list (sidebar)                                                                                                                             |
-| `#doc-search-category-filters`        | Category facet checkbox list (sidebar)                                                                                                                         |
-| `#doc-search-owner`                   | Content owner dropdown select (sidebar); change event fires `applyFilters()`                                                                                   |
-| `#doc-search-drawer`                  | Slide-in filter drawer (`role="dialog"`, `aria-modal="true"`); shown/hidden via `aria-hidden`                                                                  |
-| `#doc-search-drawer-overlay`          | Semi-transparent backdrop behind the drawer; click closes the drawer                                                                                           |
-| `#doc-search-drawer-close`            | × close button in the drawer header                                                                                                                            |
-| `#doc-search-drawer-sort`             | Drawer copy of the sort dropdown select; uses `name="doc-search-drawer-sort"`                                                                                  |
-| `#doc-search-drawer-type-filters`     | Drawer copy of the Type facet checkbox list                                                                                                                    |
-| `#doc-search-drawer-category-filters` | Drawer copy of the Category facet checkbox list                                                                                                                |
-| `#doc-search-drawer-owner`            | Drawer copy of the Content owner dropdown select                                                                                                               |
-| `#doc-search-drawer-clear`            | "Clear all" button in drawer body — resets sort to Relevance, clears all checkboxes                                                                            |
-| `#doc-search-drawer-apply`            | "Apply filters" button in drawer footer — commits drawer sort + filter selections back to sidebar state                                                        |
+| ID                                    | Purpose                                                                                                                                                           |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#policy-search-form`                 | Search form — submit triggers `runSearch()`                                                                                                                       |
+| `#search`                             | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                   |
+| `#doc-search-results-col`             | Results column; `data-view` attr controls card/table                                                                                                              |
+| `#initialLoadingSpinner`              | Shown during fetch; hidden on response                                                                                                                            |
+| `#doc-search-user-message`            | Error / no-results message; populated via `.html()` so it can contain the structured `buildNoResultsHtml()` block                                                 |
+| `#doc-search-results-summary`         | "Showing X–Y of N results" line                                                                                                                                   |
+| `#doc-search-sort`                    | Desktop sort dropdown select element `<select>`; change event triggers `applySort()` + `applyFilters()` (no API call)                                             |
+| `#doc-search-mobile-filter-btn`       | Mobile-only "Filters" pill button (hidden on desktop); opens the filter drawer                                                                                    |
+| `#doc-search-view-toggle`             | Card/table toggle pill button                                                                                                                                     |
+| `#doc-search-results-list`            | Card results `<ul>`                                                                                                                                               |
+| `#doc-search-table-body`              | Table results `<tbody>`                                                                                                                                           |
+| `#doc-search-pagination`              | Pagination `<nav>`                                                                                                                                                |
+| `#doc-search-sidebar`                 | Filter sidebar `<aside>` (hidden on mobile)                                                                                                                       |
+| `#doc-search-sidebar-clear`           | "Clear all" button in desktop sidebar                                                                                                                             |
+| `#doc-search-type-filters`            | Type facet checkbox list (sidebar)                                                                                                                                |
+| `#doc-search-category-filters`        | Category facet checkbox list (sidebar)                                                                                                                            |
+| `#doc-search-owner`                   | Content owner dropdown select (sidebar); change event fires `applyFilters()`                                                                                      |
+| `#doc-search-drawer`                  | Slide-in filter drawer (`role="dialog"`, `aria-modal="true"`); shown/hidden via `aria-hidden`                                                                     |
+| `#doc-search-drawer-overlay`          | Semi-transparent backdrop behind the drawer; click closes the drawer                                                                                              |
+| `#doc-search-drawer-close`            | × close button in the drawer header                                                                                                                               |
+| `#doc-search-drawer-sort`             | Drawer copy of the sort dropdown select; uses `name="doc-search-drawer-sort"`                                                                                     |
+| `#doc-search-drawer-type-filters`     | Drawer copy of the Type facet checkbox list                                                                                                                       |
+| `#doc-search-drawer-category-filters` | Drawer copy of the Category facet checkbox list                                                                                                                   |
+| `#doc-search-drawer-owner`            | Drawer copy of the Content owner dropdown select                                                                                                                  |
+| `#doc-search-drawer-clear`            | "Clear all" button in drawer body — resets sort to Relevance, clears all checkboxes                                                                               |
+| `#doc-search-drawer-apply`            | "Apply filters" button in drawer footer — commits drawer sort + filter selections back to sidebar state                                                           |
 | `#doc-search-drawer-item-count`       | `<p>` in `.doc-search-drawer__footer` above the Apply button; text set to "N items found" by `updateDrawerItemCount()` in real-time as drawer filters are toggled |
 
 ---
@@ -919,7 +919,11 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-view-toggle__label`                   | "Table view" / "Card view" text                                                                                                                                                                                                                                                                    |
 | `.doc-search-spinner`                              | Loading spinner wrapper                                                                                                                                                                                                                                                                            |
 | `.doc-search-spinner__ring`                        | CSS `@keyframes` ring animation                                                                                                                                                                                                                                                                    |
-| `.doc-search-user-message`                         | Error / empty-state message; `padding: 0` (no vertical padding)                                                                                                                                                                                                                                    |
+| `.doc-search-user-message`                         | Error / empty-state message; `padding: 0` (no vertical padding). Contains `.doc-search-no-results` block when a query yields zero results.                                                                                                                                                         |
+| `.doc-search-no-results`                           | No-results wrapper `<div>` — `padding: 32px 0`                                                                                                                                                                                                                                                     |
+| `.doc-search-no-results__heading`                  | "No results" `<h2>` — bold 20px heading                                                                                                                                                                                                                                                            |
+| `.doc-search-no-results__detail`                   | "There were no results for **query**" `<p>` — search term wrapped in `<strong>`                                                                                                                                                                                                                    |
+| `.doc-search-no-results__suggestion`               | "Try refining your search with some different key words" `<p>`                                                                                                                                                                                                                                     |
 | `.doc-search-results-list`                         | Card results `<ul>`                                                                                                                                                                                                                                                                                |
 | `.doc-search-result`                               | Single result card `<li>`                                                                                                                                                                                                                                                                          |
 | `.doc-search-result__title-link`                   | Card title `<a>` — `display: flex` (block-level) so the following `<p>` sits flush below with no browser-default paragraph margin-top; `gap: 6px` spaces the title text from the file-meta suffix                                                                                                  |
@@ -930,9 +934,9 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-result__collection-row`               | "Collection: …" row                                                                                                                                                                                                                                                                                |
 | `.doc-search-result__collection-icon`              | Inline SVG folder icon preceding "Collection:" — 12×12, `stroke="currentColor"`, `aria-hidden="true"`, vertically aligned to text baseline                                                                                                                                                         |
 | `.doc-search-result__collection-link`              | Link to the parent collection                                                                                                                                                                                                                                                                      |
-| `.doc-search-result__page-row`                     | "Source: …" / "Sources: …" row — `font-size: var(--font-size-xs)`, `color: var(--clr-text-alt)`, `margin-bottom: 4px`; hidden by default, shown when upstream page links are resolved                                                                                                                  |
+| `.doc-search-result__page-row`                     | "Source: …" / "Sources: …" row — `font-size: var(--font-size-xs)`, `color: var(--clr-text-alt)`, `margin-bottom: 4px`; hidden by default, shown when upstream page links are resolved                                                                                                              |
 | `.doc-search-result__page-row a`                   | Page link `<a>` inside the page row — `color: var(--clr-tertiary)`, underlined                                                                                                                                                                                                                     |
-| `.doc-search-result__page-icon`                    | Inline SVG globe icon preceding "Source:" — 16×16, `stroke="currentColor"`, `aria-hidden="true"`, vertically aligned to text baseline                                                                                                                                                             |
+| `.doc-search-result__page-icon`                    | Inline SVG globe icon preceding "Source:" — 16×16, `stroke="currentColor"`, `aria-hidden="true"`, vertically aligned to text baseline                                                                                                                                                              |
 | `.doc-search-result__meta`                         | Flex row — doctype tag + last-updated date                                                                                                                                                                                                                                                         |
 | `.doc-search-result__tag`                          | Document type tag `<span>` (e.g. "Policy") — `display: inline-flex`, `outline: 1px solid var(--clr-border-subtle)` (not `border`), **no `border-radius`**, 12px/700 uppercase Roboto                                                                                                               |
 | `.doc-search-result__updated`                      | Last-updated date wrapper `<div>` — contains literal text `Last updated:` and an inner `<span [data-ref="search-result-last-updated"]>` with the formatted date (card view only; table view renders plain text directly in `<td>`)                                                                 |
@@ -972,7 +976,7 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-drawer__close`                        | × close `<button>`; `align-self: stretch` fills the full header height; inset focus ring (`outline-offset: -4px`)                                                                                                                                                                                  |
 | `.doc-search-drawer__body`                         | Scrollable region containing the sort group, Type facet, Category facet, and Clear button                                                                                                                                                                                                          |
 | `.doc-search-drawer__footer`                       | Sticky footer containing the live item count (`#doc-search-drawer-item-count`) and the "Apply filters" button                                                                                                                                                                                      |
-| `.doc-search-drawer__item-count`                   | Live result count `<p>` ("N items found") in the drawer footer; updated in real-time by `updateDrawerItemCount()` as the user toggles drawer checkboxes, changes the owner dropdown, or clears all — without mutating module filter state                                                           |
+| `.doc-search-drawer__item-count`                   | Live result count `<p>` ("N items found") in the drawer footer; updated in real-time by `updateDrawerItemCount()` as the user toggles drawer checkboxes, changes the owner dropdown, or clears all — without mutating module filter state                                                          |
 | `.doc-search-drawer__apply`                        | "Apply filters" `<button>` — syncs drawer selections to sidebar and fires `applyFilters()`                                                                                                                                                                                                         |
 | `.doc-search-drawer__clear`                        | "Clear all" `<button>` inside `.doc-search-drawer__body`; resets sort to Relevance and unchecks all facets                                                                                                                                                                                         |
 | `.doc-search-facet-list`                           | Checkbox list `<ul>`                                                                                                                                                                                                                                                                               |
