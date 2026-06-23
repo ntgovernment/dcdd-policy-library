@@ -1333,7 +1333,7 @@
             if (pageLinks.length > 1) {
               $card
                 .find('[data-ref="search-result-page-label"]')
-                .text("Pages:");
+                .text("Sources:");
             }
             $card
               .find('[data-ref="search-result-page-ids"]')
