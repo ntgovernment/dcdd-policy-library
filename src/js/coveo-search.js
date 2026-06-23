@@ -1160,6 +1160,10 @@
       return true;
     });
 
+    // Toggle UI elements based on whether results exist
+    toggleNoResultsState(filteredResults.length);
+    updateResultsSummary();
+
     // Compute new page 1 slice and diff against currently visible items
     var perPage = resultsPerPage();
     var newSlice = filteredResults.slice(0, perPage);
@@ -1435,6 +1439,21 @@
     });
   }
 
+  // ── No results state ──────────────────────────────────────────────────────────
+  /**
+   * Toggles visibility of filter controls and sidebar based on result count.
+   * When no results are found, hides: mobile filter button, results header
+   * (summary + controls), sidebar, and pagination.
+   * @param {number} resultCount  Total filtered result count.
+   */
+  function toggleNoResultsState(resultCount) {
+    var noResults = resultCount === 0;
+    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
+    $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $("#doc-search-sidebar").toggleClass("d-none", noResults);
+    $("#doc-search-pagination").toggleClass("d-none", noResults);
+  }
+
   // ── Results summary line ──────────────────────────────────────────────────────
   /**
    * Updates #doc-search-results-summary with "Showing X–Y of Z results" text,
@@ -1529,6 +1548,20 @@
   }
 
   /**
+   * Toggles visibility of filter controls and sidebar based on result count.
+   * When no results are found, hides: mobile filter button, results header
+   * (summary + controls), sidebar, and pagination.
+   * @param {number} resultCount  Total filtered result count.
+   */
+  function toggleNoResultsState(resultCount) {
+    var noResults = resultCount === 0;
+    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
+    $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $("#doc-search-sidebar").toggleClass("d-none", noResults);
+    $("#doc-search-pagination").toggleClass("d-none", noResults);
+  }
+
+  /**
    * Returns a mixed array of page numbers and "…" gap markers for the pagination bar.
    * Always includes page 1, the last page, and current ±1. Inserts "…" where the gap
    * is larger than one page. Returns a flat consecutive range when total ≤ 7.
@@ -1581,14 +1614,30 @@
    */
   function buildNoResultsHtml(query) {
     return (
-      '<div class="doc-search-no-results">' +
+      '<div class="doc-search-no-results" data-state="No result">' +
+      '<div class="doc-search-no-results__inner">' +
       '<h2 class="doc-search-no-results__heading">No results</h2>' +
       '<p class="doc-search-no-results__detail">There were no results for <strong>' +
       escHtml(query) +
       "</strong></p>" +
       '<p class="doc-search-no-results__suggestion">Try refining your search with some different key words</p>' +
+      "</div>" +
       "</div>"
     );
+  }
+
+  /**
+   * Toggles visibility of filter controls and sidebar based on result count.
+   * When no results are found, hides: mobile filter button, results header
+   * (summary + controls), sidebar, drawer, and pagination.
+   * @param {number} resultCount  Total filtered result count.
+   */
+  function toggleNoResultsState(resultCount) {
+    var noResults = resultCount === 0;
+    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
+    $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $("#doc-search-sidebar").toggleClass("d-none", noResults);
+    $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
 
   // ── HTML helpers ─────────────────────────────────────────────────────────────
@@ -1834,6 +1883,7 @@
         applySort();
 
         if (allResults.length === 0) {
+          toggleNoResultsState(0);
           setUserMessage(
             query ? buildNoResultsHtml(query) : "No documents found.",
           );
