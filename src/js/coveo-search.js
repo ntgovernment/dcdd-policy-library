@@ -269,6 +269,10 @@
     return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
   }
 
+  function shouldLogRecachePageLinks() {
+    return /\/_recache(?:\/|$|\?|#)/i.test(window.location.href);
+  }
+
   var COVEO_BASE_URL =
     "https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query";
   var MOCK_URL = "./src/mock/coveo-search-rest-api-query.json";
@@ -470,6 +474,12 @@
     }
 
     var promise = resolvePageLinksUncached(assetId).then(function (pageLinks) {
+      if (shouldLogRecachePageLinks()) {
+        console.log("[DCDD] /_recache page-links first-pass", {
+          assetId: assetId,
+          pageLinks: pageLinks,
+        });
+      }
       if (!isDev && !bypassStorage) savePageLinksToStorage(assetId, pageLinks);
       return pageLinks;
     });

@@ -111,6 +111,8 @@ Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.
 
 When the current URL contains `/_nocache` or `/_recache`, the page-link resolver bypasses the persistent `localStorage` layer and fetches fresh link data instead. The in-memory `pageLinksCache` remains active during that page load so card/table rendering, pagination, sorting, and filtering still reuse the same in-flight/resolved Promise.
 
+When the current URL contains `/_recache`, the first uncached resolve per unique `assetId` logs a debug console entry (`[DCDD] /_recache page-links first-pass`) that includes the full resolved page-link JSON payload for that asset. Because `pageLinksCache` memoizes each Promise, subsequent renders for the same `assetId` in the same page load do not re-log.
+
 ## Build commands
 
 ```bash
