@@ -95,10 +95,12 @@ Implementation details:
 
 ## Category value format
 
-`raw.category` values are parsed as semicolon-delimited when a document belongs to multiple categories.
+`raw.category` values are parsed as multi-value categories and support both comma and semicolon delimiters.
 
-- Use `;` between category values (for example: `Fraud and corruption; Governance and accountability`).
-- Commas are valid inside a single category label and must not be treated as delimiters (for example: `Conduct, integrity and risk`).
+- Multi-value input may be comma-delimited (Coveo default) or semicolon-delimited.
+- Comma split rule: split only when the next non-space character starts with an uppercase letter.
+- Example split: `Fraud and corruption, Finance and travel`.
+- Example no-split: `Conduct, integrity and risk`.
 - Search facet counts and filtering in `src/js/coveo-search.js` follow this contract.
 
 ## Page-link cache behavior (`/_nocache`, `/_recache`)

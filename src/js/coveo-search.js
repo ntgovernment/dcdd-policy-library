@@ -61,10 +61,12 @@
  * result.raw.asseturl                 — primary document URL
  * result.raw.description              — card description (falls back to result.excerpt)
  * result.raw.resourcedoctype          — "Type" facet value and tag label
- * result.raw.category                 — "Category" facet value(s). Multi-category values are semicolon-delimited
- *                                       (e.g. "Protocols; Governance and accountability") so commas can be used
- *                                       inside a single category label (e.g. "Conduct, integrity and risk").
- *                                       splitCategoryValues() is used throughout category flows. The raw string is
+* result.raw.category                 — "Category" facet value(s). Coveo may return multi-values as comma-separated
+*                                       strings (e.g. "Finance and travel, Purchases and assets").
+*                                       splitCategoryValues() supports comma and semicolon delimiters and applies
+*                                       a capitalization rule for comma splits: split only when the next non-space
+*                                       character is uppercase (e.g. preserves "Conduct, integrity and risk").
+ *                                       The raw string is
  *                                       stored as the data-category attribute on rendered card <li> and table <tr>
  *                                       elements; filtering matches any token against activeCategoryFilters.
  * result.raw.collectionname           — human-readable collection name; used as display text in card and table views
@@ -191,7 +193,7 @@
  *   currentPage           Number  — active pagination page (1-based)
  *   activeTypeFilters     Set     — checked "Type" facet values (raw.resourcedoctype)
  *   activeCategoryFilters Set     — checked "Category" facet values; each entry is a single trimmed token
- *                                   derived from splitting raw.category on ";" via splitCategoryValues()
+ *                                   derived from splitCategoryValues() for raw.category
  *   currentSort           String  — "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   currentQuery          String  — last query string passed to runSearch()
  *   matrixMockCache       Object  — cached contents of matrix-asset-links.json (dev mode only;
@@ -952,11 +954,12 @@
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
-    * Multi-value fields: category values use semicolon-delimited tokens
-    * (e.g. raw.category = "Fraud and corruption; Governance and accountability").
-    * splitCategoryValues() is applied for category counting and key extraction so
-    * commas remain valid punctuation within a single category label
-    * (e.g. "Conduct, integrity and risk").
+   * Multi-value fields: category values may arrive comma-delimited or
+   * semicolon-delimited (e.g. "Fraud and corruption, Finance and travel" or
+   * "Fraud and corruption; Finance and travel"). splitCategoryValues() applies
+   * a capitalization rule for comma separation: split only when the next token
+   * starts with an uppercase letter. Labels like "Conduct, integrity and risk"
+   * remain intact.
    *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
    * @param {string} field        result.raw property name (e.g. "resourcedoctype", "category").
@@ -983,21 +986,63 @@
   }
 
   /**
-   * Splits category values on ";" into trimmed, non-empty tokens.
-   * Commas are preserved within each token so labels like
-   * "Conduct, integrity and risk" remain a single category value.
+   * Splits category values into trimmed, non-empty tokens.
+   * Supports semicolon and comma delimiters for multi-value records.
+   * For comma-delimited values, it only splits at commas where the next
+   * non-space character is uppercase, so labels such as
+   * "Conduct, integrity and risk" remain a single category.
    * @param {string} val
    * @returns {string[]}
    */
   function splitCategoryValues(val) {
-    return val
-      ? val
-          .split(";")
-          .map(function (s) {
-            return s.trim();
-          })
-          .filter(Boolean)
-      : [];
+    if (!val) return [];
+
+    var raw = String(val).trim();
+    if (!raw) return [];
+
+    // Backward/forward compatibility: accept semicolon-delimited values directly.
+    if (raw.indexOf(";") !== -1) {
+      return raw
+        .split(";")
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+    }
+
+    var parts = [];
+    var current = "";
+
+    for (var i = 0; i < raw.length; i++) {
+      var ch = raw.charAt(i);
+      if (ch !== ",") {
+        current += ch;
+        continue;
+      }
+
+      var j = i + 1;
+      while (j < raw.length && raw.charAt(j) === " ") {
+        j++;
+      }
+
+      var next = j < raw.length ? raw.charAt(j) : "";
+      var startsNewCategory = /[A-Z]/.test(next);
+
+      if (startsNewCategory) {
+        if (current.trim()) {
+          parts.push(current.trim());
+        }
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+
+    if (current.trim()) {
+      parts.push(current.trim());
+    }
+
+    return parts;
   }
 
   function buildFacet(results, field, containerId, activeSet) {
@@ -1007,7 +1052,9 @@
       var val = (r.raw || {})[field];
       if (val) {
         var facetValues =
-          field === "category" ? splitCategoryValues(val) : splitFieldValues(val);
+          field === "category"
+            ? splitCategoryValues(val)
+            : splitFieldValues(val);
         facetValues.forEach(function (v) {
           counts[v] = (counts[v] || 0) + 1;
         });
@@ -1020,7 +1067,9 @@
       var val = (r.raw || {})[field];
       if (val) {
         var masterValues =
-          field === "category" ? splitCategoryValues(val) : splitFieldValues(val);
+          field === "category"
+            ? splitCategoryValues(val)
+            : splitFieldValues(val);
         masterValues.forEach(function (v) {
           masterKeys[v] = true;
         });
