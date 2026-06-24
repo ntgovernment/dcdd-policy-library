@@ -102,6 +102,8 @@ Page links resolved by `src/js/coveo-search.js` use two cache layers:
 
 Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.js`:
 
+- If a result includes both `raw.sourcepage` and `raw.sourceurl`, that source link is rendered immediately in the Source field (card and table) before async Matrix page-link resolution completes.
+- When async Matrix page links resolve, they are merged with the immediate source link(s) (immediate first, deduped by URL path).
 - On `internal.nt.gov.au` pages, page links are rendered first, then non-matching links are hidden in the DOM when their base prefix differs from the current page base prefix.
 - Links whose URL starts with `https://ntgcentral.nt.gov.au/` are always kept (not hidden by prefix filtering).
 - Base prefix means: `scheme + host + first path segment` (example: `https://internal.nt.gov.au/dcdd`).

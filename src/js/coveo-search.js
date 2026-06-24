@@ -38,8 +38,11 @@
  * The response is an array of link objects; only entries with
  * link_type === "reference" are displayed. Their major_id values are shown
  * comma-separated in the "Page:" row on each card.
- * Fetches are non-blocking — cards render immediately with "Loading…" text
- * in the Page row; the row is hidden if no reference links exist.
+ * If a result contains raw.sourcepage + raw.sourceurl, that Source link is
+ * rendered immediately before async page-link fetch completes. Resolved Matrix
+ * links are then merged with immediate links (immediate first, deduped).
+ * Fetches are non-blocking — rows may show immediate Source links or a
+ * "Loading…" placeholder depending on available fields.
  *
  * Sorting is performed client-side after the full result set is received:
  *   applySort() is called after every fetch and after every sort radio button change.
@@ -72,6 +75,8 @@
  * result.raw.resourcefilesize         — human-readable file size (e.g. "354.2 KB")
  * result.raw.assetassetid              — Squiz Matrix asset ID; used to fetch upstream
  *                                        page links from the Matrix Management API
+ * result.raw.sourcepage               — optional immediate Source link label
+ * result.raw.sourceurl                — optional immediate Source link URL
  *
  * ── DOM CONTRACT ─────────────────────────────────────────────────────────────
  * IDs and attributes that must exist in the page HTML:
@@ -97,10 +102,12 @@
  *                                                e.g. "My Document (PDF 354.2 KB)"
  *   [data-ref="search-result-extlink"]         external-link icon — permanently hidden (display:none in CSS; JS does not remove hidden attr)
  *   [data-ref="search-result-description"]     description / excerpt text
- *   [data-ref="search-result-page-row"]         entire row hidden when no reference page links;
+ *   [data-ref="search-result-page-row"]         entire row hidden when no Source links remain;
  *                                               contains a 16×16 document icon SVG
  *                                               (.doc-search-result__page-icon) and a text span.
- *                                               Populated asynchronously after card render.
+ *                                               Can be populated immediately from
+ *                                               raw.sourcepage/raw.sourceurl, then merged
+ *                                               with asynchronously resolved page links.
  *   [data-ref="search-result-page-ids"]         comma-separated <a> links to parent intranet pages,
  *                                               each with a text fragment appended so the browser
  *                                               scrolls to and highlights the matching document:
@@ -122,13 +129,16 @@
  *                                        title text includes formatFileMeta() suffix
  *   .doc-search-table__col-updated     last-updated plain text
  *   .doc-search-table__col-type        doctype — <span class="doc-search-table__tag"> or empty
- *   .doc-search-table__col-collection  pages — comma-separated <a> links to parent intranet
+ *   .doc-search-table__col-collection  pages — comma-separated <a> Source links
+ *                                        (immediate sourcepage/sourceurl when present,
+ *                                        merged with resolved parent intranet page links)
  *                                        pages, resolved asynchronously from the Squiz Matrix
  *                                        Management API (same chain as the card view's page row).
- *                                        Initially shows "Loading\u2026" when raw.assetassetid is
- *                                        present; populated empty when no pages are resolved or
- *                                        when raw.assetassetid is absent. Pages whose URL path
- *                                        contains "/news/", "/dev/", or "archive" are excluded.
+ *                                        Initially shows immediate source links when present,
+ *                                        otherwise "Loading\u2026" when raw.assetassetid is
+ *                                        present; populated empty when no links remain. Pages
+ *                                        whose URL path contains "/news/", "/dev/", or
+ *                                        "archive" are excluded.
  *
  * Facet items (built by buildFacet into #doc-search-type-filters / #doc-search-category-filters):
  *   input[data-facet][data-value]       checkbox; data-facet = raw field name, data-value = raw value
@@ -629,9 +639,13 @@
     var fragment = fileMeta ? "#:~:text=" + encodeURIComponent(fileMeta) : "";
     return pageLinks
       .map(function (p) {
+        var rawPath = (p.path || "").trim();
+        var href = /^https?:\/\//i.test(rawPath)
+          ? rawPath
+          : "https://" + rawPath;
         return (
-          '<a href="https://' +
-          $("<span>").text(p.path).html() +
+          '<a href="' +
+          $("<span>").text(href).html() +
           fragment +
           '">' +
           $("<span>").text(p.name).html() +
@@ -639,6 +653,45 @@
         );
       })
       .join(", ");
+  }
+
+  /**
+   * Returns an immediate Source link entry from Coveo fields when both
+   * sourcepage and sourceurl are present.
+   * @param {Object} raw
+   * @returns {Array<{name: string, path: string}>}
+   */
+  function getImmediateSourceLinks(raw) {
+    var sourceName = ((raw && raw.sourcepage) || "").trim();
+    var sourceUrl = ((raw && raw.sourceurl) || "").trim();
+    if (!sourceName || !sourceUrl) return [];
+    return [{ name: sourceName, path: sourceUrl }];
+  }
+
+  /**
+   * Merges immediate and fetched Source links, removing duplicates by path
+   * (case-insensitive) while preserving order.
+   * @param {Array<{name: string, path: string}>} immediateLinks
+   * @param {Array<{name: string, path: string}>} fetchedLinks
+   * @returns {Array<{name: string, path: string}>}
+   */
+  function mergeSourceLinks(immediateLinks, fetchedLinks) {
+    var out = [];
+    var seen = {};
+
+    function pushUnique(link) {
+      var name = ((link && link.name) || "").trim();
+      var path = ((link && link.path) || "").trim();
+      if (!name || !path) return;
+      var key = path.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push({ name: name, path: path });
+    }
+
+    (immediateLinks || []).forEach(pushUnique);
+    (fetchedLinks || []).forEach(pushUnique);
+    return out;
   }
 
   /**
@@ -1365,6 +1418,8 @@
 
     results.forEach(function (result) {
       var raw = result.raw || {};
+      var fileMeta = formatFileMeta(raw).trim();
+      var immediateSourceLinks = getImmediateSourceLinks(raw);
       var id = resultId(result);
       var $item = $template
         .clone()
@@ -1418,27 +1473,37 @@
 
       // Page row — async fetch of upstream reference links
       var assetAssetId = raw.assetassetid || "";
-      if (assetAssetId) {
+      if (assetAssetId || immediateSourceLinks.length) {
         (function ($card) {
           var $pageRow = $card.find('[data-ref="search-result-page-row"]');
+          var $pageIds = $card.find('[data-ref="search-result-page-ids"]');
           $pageRow.removeAttr("hidden");
-          $card
-            .find('[data-ref="search-result-page-ids"]')
-            .text("Loading\u2026");
-          resolvePageLinks(assetAssetId).then(function (pageLinks) {
-            if (!pageLinks.length) {
+
+          if (immediateSourceLinks.length) {
+            $pageIds.html(renderPageLinksHtml(immediateSourceLinks, fileMeta));
+            var initialCount = filterPageLinksByPrefix($pageIds);
+            if (!initialCount && !assetAssetId) {
               $pageRow.attr("hidden", true);
               return;
             }
-            if (pageLinks.length > 1) {
-              $card
-                .find('[data-ref="search-result-page-label"]')
-                .text("Sources:");
+            $card
+              .find('[data-ref="search-result-page-label"]')
+              .text(initialCount > 1 ? "Sources:" : "Source:");
+          } else {
+            $pageIds.text("Loading\u2026");
+          }
+
+          if (!assetAssetId) {
+            return;
+          }
+
+          resolvePageLinks(assetAssetId).then(function (pageLinks) {
+            var mergedLinks = mergeSourceLinks(immediateSourceLinks, pageLinks);
+            if (!mergedLinks.length) {
+              $pageRow.attr("hidden", true);
+              return;
             }
-            var $pageIds = $card.find('[data-ref="search-result-page-ids"]');
-            $pageIds.html(
-              renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()),
-            );
+            $pageIds.html(renderPageLinksHtml(mergedLinks, fileMeta));
             var visibleCount = filterPageLinksByPrefix($pageIds);
             if (!visibleCount) {
               $pageRow.attr("hidden", true);
@@ -1488,10 +1553,19 @@
       var titleText = raw.resourcefriendlytitle || result.title || "";
       var doctype = raw.resourcedoctype || "";
       var updated = formatDate(raw.resourceupdated);
+      var fileMeta = formatFileMeta(raw).trim();
+      var immediateSourceLinks = getImmediateSourceLinks(raw);
 
       var extIcon = "";
-
-      var pagesCellInitial = assetAssetId ? "Loading\u2026" : "";
+      var pagesCellInitialHtml = "";
+      if (immediateSourceLinks.length) {
+        pagesCellInitialHtml = renderPageLinksHtml(
+          immediateSourceLinks,
+          fileMeta,
+        );
+      } else if (assetAssetId) {
+        pagesCellInitialHtml = escHtml("Loading\u2026");
+      }
 
       var $row = $(
         "<tr>" +
@@ -1518,7 +1592,7 @@
             : "") +
           "</td>" +
           '<td class="doc-search-table__col-collection doc-search-table__col-pages">' +
-          escHtml(pagesCellInitial) +
+          pagesCellInitialHtml +
           "</td>" +
           "</tr>",
       );
@@ -1534,13 +1608,11 @@
       if (assetAssetId) {
         (function ($cell, fileMeta) {
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
-            $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
+            var mergedLinks = mergeSourceLinks(immediateSourceLinks, pageLinks);
+            $cell.html(renderPageLinksHtml(mergedLinks, fileMeta));
             filterPageLinksByPrefix($cell);
           });
-        })(
-          $row.find(".doc-search-table__col-pages"),
-          formatFileMeta(raw).trim(),
-        );
+        })($row.find(".doc-search-table__col-pages"), fileMeta);
       }
     });
   }
