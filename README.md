@@ -103,6 +103,7 @@ Page links resolved by `src/js/coveo-search.js` use two cache layers:
 Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.js`:
 
 - On `internal.nt.gov.au` pages, page links are rendered first, then non-matching links are hidden in the DOM when their base prefix differs from the current page base prefix.
+- Links whose URL starts with `https://ntgcentral.nt.gov.au/` are always kept (not hidden by prefix filtering).
 - Base prefix means: `scheme + host + first path segment` (example: `https://internal.nt.gov.au/dcdd`).
 - Existing path exclusions still apply (`/news/`, `/dev/`, and `archive`).
 - On local/dev hosts (`localhost`, `127.0.0.1`, `*.github.io`), this prefix filter is not enforced.

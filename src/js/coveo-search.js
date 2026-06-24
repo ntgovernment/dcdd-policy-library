@@ -640,6 +640,7 @@
   function filterPageLinksByPrefix($container) {
     var $links = $container.find("a");
     if (!$links.length) return 0;
+    var ntgcentralPrefix = "https://ntgcentral.nt.gov.au/";
 
     if (!shouldEnforcePageLinkPrefixFilter()) {
       return $links.length;
@@ -654,6 +655,10 @@
     $links.each(function () {
       var href = $(this).attr("href");
       if (!href) return;
+      if (href.toLowerCase().indexOf(ntgcentralPrefix) === 0) {
+        kept.push(this);
+        return;
+      }
       var linkPrefix = getBasePrefixFromUrlLike(href);
       if (linkPrefix === currentPrefix) {
         kept.push(this);
