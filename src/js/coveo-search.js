@@ -232,6 +232,10 @@
     ["localhost", "127.0.0.1"].includes(window.location.hostname) ||
     window.location.hostname.endsWith(".github.io");
 
+  function shouldBypassPageLinksStorage() {
+    return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
+  }
+
   var COVEO_BASE_URL =
     "https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query";
   var MOCK_URL = "./src/mock/coveo-search-rest-api-query.json";
@@ -418,11 +422,12 @@
   function resolvePageLinks(assetId) {
     if (!assetId) return Promise.resolve([]);
     if (pageLinksCache[assetId]) return pageLinksCache[assetId];
+    var bypassStorage = shouldBypassPageLinksStorage();
 
     // localStorage hit (production only — in dev the static mock JSON is
     // already cached in memory by fetchPageLinks(), so persisting it adds
     // no benefit and would clutter the developer's storage).
-    if (!isDev) {
+    if (!isDev && !bypassStorage) {
       var stored = loadPageLinksFromStorage(assetId);
       if (stored) {
         var resolvedPromise = Promise.resolve(stored);
@@ -432,7 +437,7 @@
     }
 
     var promise = resolvePageLinksUncached(assetId).then(function (pageLinks) {
-      if (!isDev) savePageLinksToStorage(assetId, pageLinks);
+      if (!isDev && !bypassStorage) savePageLinksToStorage(assetId, pageLinks);
       return pageLinks;
     });
     pageLinksCache[assetId] = promise;

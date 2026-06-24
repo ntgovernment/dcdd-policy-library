@@ -93,6 +93,15 @@ Implementation details:
 - If `#asset-contents` is not present immediately, a `MutationObserver` watches for late insertion.
 - Observers disconnect after a successful move, with a safety timeout to avoid long-lived observers.
 
+## Page-link cache behavior (`/_nocache`, `/_recache`)
+
+Page links resolved by `src/js/coveo-search.js` use two cache layers:
+
+- In-memory per page load: `pageLinksCache` (always used for deduping repeated resolves).
+- Persistent cache: `localStorage` keys prefixed with `dcdd-page-links:`.
+
+When the current URL contains `/_nocache` or `/_recache`, the page-link resolver bypasses the persistent `localStorage` layer and fetches fresh link data instead. The in-memory `pageLinksCache` remains active during that page load so card/table rendering, pagination, sorting, and filtering still reuse the same in-flight/resolved Promise.
+
 ## Build commands
 
 ```bash
