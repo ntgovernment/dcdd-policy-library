@@ -232,6 +232,39 @@
     ["localhost", "127.0.0.1"].includes(window.location.hostname) ||
     window.location.hostname.endsWith(".github.io");
 
+  function shouldEnforcePageLinkPrefixFilter() {
+    return window.location.hostname === "internal.nt.gov.au";
+  }
+
+  // Base prefix = protocol + host + first path segment, e.g.
+  // https://internal.nt.gov.au/dcdd
+  function getBasePrefixFromUrlLike(urlLike) {
+    if (!urlLike) return "";
+    try {
+      var parsed = new URL(urlLike, window.location.origin);
+      var firstSegment = parsed.pathname.split("/").filter(Boolean)[0];
+      return (
+        parsed.protocol +
+        "//" +
+        parsed.host +
+        (firstSegment ? "/" + firstSegment : "")
+      ).toLowerCase();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function getCurrentPageBasePrefix() {
+    return getBasePrefixFromUrlLike(window.location.href);
+  }
+
+  function doesPageLinkMatchCurrentBasePrefix(path) {
+    var currentPrefix = getCurrentPageBasePrefix();
+    var linkPrefix = getBasePrefixFromUrlLike(path);
+    if (!currentPrefix || !linkPrefix) return false;
+    return currentPrefix === linkPrefix;
+  }
+
   function shouldBypassPageLinksStorage() {
     return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
   }
@@ -559,7 +592,18 @@
                 lowerPath.indexOf("/news/") !== -1 ||
                 lowerPath.indexOf("/dev/") !== -1 ||
                 lowerPath.indexOf("archive") !== -1;
-              if (name && path && !isExcluded && !seen[path]) {
+              var prefixMatches = doesPageLinkMatchCurrentBasePrefix(path);
+              // Only enforce base-prefix visibility on internal.nt.gov.au;
+              // dev/local previews should keep showing all eligible links.
+              var canShowByPrefix =
+                !shouldEnforcePageLinkPrefixFilter() || prefixMatches;
+              if (
+                name &&
+                path &&
+                !isExcluded &&
+                canShowByPrefix &&
+                !seen[path]
+              ) {
                 seen[path] = true;
                 out.push({ name: name, path: path });
               }

@@ -770,7 +770,8 @@ Table rows display the same page links as the card view, populated asynchronousl
 5. If the asset has `attributes.name === "Page Contents"`, fetch `assets/{major_id - 1}` (the parent page)
 6. Extract `attributes.short_name` (falling back to `attributes.name`) and `urls[0].path` from the parent asset
 7. Filter out pages whose URL path contains "/news/", "/dev/", or "archive" (case-insensitive)
-8. Render as comma-separated `<a>` links, deduplicated by URL path
+8. On `internal.nt.gov.au` pages, apply a base-prefix visibility rule: keep links only when the link base prefix matches the current page base prefix (`scheme + host + first path segment`, e.g. `https://internal.nt.gov.au/dcdd`)
+9. Render as comma-separated `<a>` links, deduplicated by URL path
 
 **Card view** — The source row is hidden when: no `assetassetid` is present, no reference links are found, or the resolution chain yields only excluded/empty results. The label changes from "Source:" to "Sources:" when multiple links are resolved.
 
@@ -782,7 +783,7 @@ Table rows display the same page links as the card view, populated asynchronousl
 
 **Shared helper functions:**
 
-- `resolvePageLinks(assetId)` — returns `Promise<Array<{name, path}>>`. Encapsulates the full upstream-link resolution chain, including the /news/, /dev/, archive exclusion filter and deduplication. Results are memoized in `pageLinksCache` for the lifetime of the current query, so repeated card/table renders reuse the same Promise and do not re-fetch the same asset links. In production, resolved page-link arrays are also persisted to `localStorage` under `dcdd-page-links:<assetId>`, so repeated page loads can serve cached page links without additional Matrix API fetches. When the current page URL contains `/_nocache` or `/_recache`, this persistent localStorage layer is bypassed (read and write), and fresh link data is fetched. Dev mode skips localStorage persistence and continues to use the static mock JSON cache.
+- `resolvePageLinks(assetId)` — returns `Promise<Array<{name, path}>>`. Encapsulates the full upstream-link resolution chain, including the /news/, /dev/, archive exclusion filter, host-gated base-prefix visibility filter, and deduplication. Base-prefix filtering is enforced only when `window.location.hostname === "internal.nt.gov.au"`; local preview hosts continue to show all eligible links after path exclusions. Results are memoized in `pageLinksCache` for the lifetime of the current query, so repeated card/table renders reuse the same Promise and do not re-fetch the same asset links. In production, resolved page-link arrays are also persisted to `localStorage` under `dcdd-page-links:<assetId>`, so repeated page loads can serve cached page links without additional Matrix API fetches. When the current page URL contains `/_nocache` or `/_recache`, this persistent localStorage layer is bypassed (read and write), and fresh link data is fetched. Dev mode skips localStorage persistence and continues to use the static mock JSON cache.
 - `renderPageLinksHtml(pageLinks)` — returns comma-separated HTML `<a>` string (or empty string when input is empty). Uses jQuery for HTML escaping to prevent XSS. Called by both render functions after `resolvePageLinks()` resolves.
 - `prefetchPageLinks(originalResults)` — starts background resolution for every unique `raw.assetassetid` in the search result set once the Coveo response arrives. This pre-warms the cache so pagination, sorting, filtering, and view toggles can show previously fetched page links instantly.
 
