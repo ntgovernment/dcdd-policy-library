@@ -592,18 +592,7 @@
                 lowerPath.indexOf("/news/") !== -1 ||
                 lowerPath.indexOf("/dev/") !== -1 ||
                 lowerPath.indexOf("archive") !== -1;
-              var prefixMatches = doesPageLinkMatchCurrentBasePrefix(path);
-              // Only enforce base-prefix visibility on internal.nt.gov.au;
-              // dev/local previews should keep showing all eligible links.
-              var canShowByPrefix =
-                !shouldEnforcePageLinkPrefixFilter() || prefixMatches;
-              if (
-                name &&
-                path &&
-                !isExcluded &&
-                canShowByPrefix &&
-                !seen[path]
-              ) {
+              if (name && path && !isExcluded && !seen[path]) {
                 seen[path] = true;
                 out.push({ name: name, path: path });
               }
@@ -640,6 +629,27 @@
         );
       })
       .join(", ");
+  }
+
+  /**
+   * Filters rendered page-link <a> elements in a container, hiding those whose
+   * href base prefix doesn't match the current page base prefix. Only enforced
+   * on internal.nt.gov.au; dev/local pages show all links.
+   * @param {jQuery} $container  jQuery element containing <a> links to filter
+   */
+  function filterPageLinksByPrefix($container) {
+    if (!shouldEnforcePageLinkPrefixFilter()) return;
+    var currentPrefix = getCurrentPageBasePrefix();
+    if (!currentPrefix) return;
+
+    $container.find("a").each(function () {
+      var href = $(this).attr("href");
+      if (!href) return;
+      var linkPrefix = getBasePrefixFromUrlLike(href);
+      if (linkPrefix && linkPrefix !== currentPrefix) {
+        $(this).css("display", "none");
+      }
+    });
   }
 
   /**
@@ -1388,9 +1398,11 @@
                 .find('[data-ref="search-result-page-label"]')
                 .text("Sources:");
             }
-            $card
-              .find('[data-ref="search-result-page-ids"]')
-              .html(renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()));
+            var $pageIds = $card.find('[data-ref="search-result-page-ids"]');
+            $pageIds.html(
+              renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()),
+            );
+            filterPageLinksByPrefix($pageIds);
           });
         })($item);
       }
@@ -1479,6 +1491,7 @@
         (function ($cell, fileMeta) {
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
             $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
+            filterPageLinksByPrefix($cell);
           });
         })(
           $row.find(".doc-search-table__col-pages"),
