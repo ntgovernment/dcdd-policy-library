@@ -61,10 +61,10 @@
  * result.raw.asseturl                 — primary document URL
  * result.raw.description              — card description (falls back to result.excerpt)
  * result.raw.resourcedoctype          — "Type" facet value and tag label
- * result.raw.category                 — "Category" facet value(s). Coveo maps multiple <meta name="category">
- *                                       tags as a single comma-separated string (e.g. "Protocols, Governance and
- *                                       accountability"). splitFieldValues() is used throughout to split on ","
- *                                       so each token is treated as an independent category. The raw string is
+ * result.raw.category                 — "Category" facet value(s). Multi-category values are semicolon-delimited
+ *                                       (e.g. "Protocols; Governance and accountability") so commas can be used
+ *                                       inside a single category label (e.g. "Conduct, integrity and risk").
+ *                                       splitCategoryValues() is used throughout category flows. The raw string is
  *                                       stored as the data-category attribute on rendered card <li> and table <tr>
  *                                       elements; filtering matches any token against activeCategoryFilters.
  * result.raw.collectionname           — human-readable collection name; used as display text in card and table views
@@ -191,7 +191,7 @@
  *   currentPage           Number  — active pagination page (1-based)
  *   activeTypeFilters     Set     — checked "Type" facet values (raw.resourcedoctype)
  *   activeCategoryFilters Set     — checked "Category" facet values; each entry is a single trimmed token
- *                                   derived from splitting raw.category on "," via splitFieldValues()
+ *                                   derived from splitting raw.category on ";" via splitCategoryValues()
  *   currentSort           String  — "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   currentQuery          String  — last query string passed to runSearch()
  *   matrixMockCache       Object  — cached contents of matrix-asset-links.json (dev mode only;
@@ -952,10 +952,11 @@
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
-   * Multi-value fields: when a raw field value contains comma-separated tokens
-   * (e.g. raw.category = "Protocols, Governance and accountability"), splitFieldValues()
-   * is applied before counting and key extraction so each token is treated as an
-   * independent facet value. Single-value fields (e.g. resourcedoctype) are unaffected.
+    * Multi-value fields: category values use semicolon-delimited tokens
+    * (e.g. raw.category = "Fraud and corruption; Governance and accountability").
+    * splitCategoryValues() is applied for category counting and key extraction so
+    * commas remain valid punctuation within a single category label
+    * (e.g. "Conduct, integrity and risk").
    *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
    * @param {string} field        result.raw property name (e.g. "resourcedoctype", "category").
@@ -981,13 +982,33 @@
       : [];
   }
 
+  /**
+   * Splits category values on ";" into trimmed, non-empty tokens.
+   * Commas are preserved within each token so labels like
+   * "Conduct, integrity and risk" remain a single category value.
+   * @param {string} val
+   * @returns {string[]}
+   */
+  function splitCategoryValues(val) {
+    return val
+      ? val
+          .split(";")
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(Boolean)
+      : [];
+  }
+
   function buildFacet(results, field, containerId, activeSet) {
     // Count occurrences in the CURRENT result set (may be a filtered/searched subset)
     var counts = {};
     results.forEach(function (r) {
       var val = (r.raw || {})[field];
       if (val) {
-        splitFieldValues(val).forEach(function (v) {
+        var facetValues =
+          field === "category" ? splitCategoryValues(val) : splitFieldValues(val);
+        facetValues.forEach(function (v) {
           counts[v] = (counts[v] || 0) + 1;
         });
       }
@@ -998,7 +1019,9 @@
     masterResults.forEach(function (r) {
       var val = (r.raw || {})[field];
       if (val) {
-        splitFieldValues(val).forEach(function (v) {
+        var masterValues =
+          field === "category" ? splitCategoryValues(val) : splitFieldValues(val);
+        masterValues.forEach(function (v) {
           masterKeys[v] = true;
         });
       }
@@ -1206,7 +1229,7 @@
       }
       if (
         drawerCategoryFilters.size > 0 &&
-        !splitFieldValues(raw.category || "").some(function (v) {
+        !splitCategoryValues(raw.category || "").some(function (v) {
           return drawerCategoryFilters.has(v);
         })
       ) {
@@ -1300,7 +1323,7 @@
       }
       if (
         activeCategoryFilters.size > 0 &&
-        !splitFieldValues(raw.category || "").some(function (v) {
+        !splitCategoryValues(raw.category || "").some(function (v) {
           return activeCategoryFilters.has(v);
         })
       ) {

@@ -93,6 +93,14 @@ Implementation details:
 - If `#asset-contents` is not present immediately, a `MutationObserver` watches for late insertion.
 - Observers disconnect after a successful move, with a safety timeout to avoid long-lived observers.
 
+## Category value format
+
+`raw.category` values are parsed as semicolon-delimited when a document belongs to multiple categories.
+
+- Use `;` between category values (for example: `Fraud and corruption; Governance and accountability`).
+- Commas are valid inside a single category label and must not be treated as delimiters (for example: `Conduct, integrity and risk`).
+- Search facet counts and filtering in `src/js/coveo-search.js` follow this contract.
+
 ## Page-link cache behavior (`/_nocache`, `/_recache`)
 
 Page links resolved by `src/js/coveo-search.js` use two cache layers:
