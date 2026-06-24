@@ -632,24 +632,46 @@
   }
 
   /**
-   * Filters rendered page-link <a> elements in a container, hiding those whose
-   * href base prefix doesn't match the current page base prefix. Only enforced
-   * on internal.nt.gov.au; dev/local pages show all links.
+   * Filters rendered page-link <a> elements in a container and rewrites the
+   * container HTML using only kept links so separator commas stay correct.
    * @param {jQuery} $container  jQuery element containing <a> links to filter
+   * @returns {number}  Count of links remaining after filtering.
    */
   function filterPageLinksByPrefix($container) {
-    if (!shouldEnforcePageLinkPrefixFilter()) return;
-    var currentPrefix = getCurrentPageBasePrefix();
-    if (!currentPrefix) return;
+    var $links = $container.find("a");
+    if (!$links.length) return 0;
 
-    $container.find("a").each(function () {
+    if (!shouldEnforcePageLinkPrefixFilter()) {
+      return $links.length;
+    }
+
+    var currentPrefix = getCurrentPageBasePrefix();
+    if (!currentPrefix) {
+      return $links.length;
+    }
+
+    var kept = [];
+    $links.each(function () {
       var href = $(this).attr("href");
       if (!href) return;
       var linkPrefix = getBasePrefixFromUrlLike(href);
-      if (linkPrefix && linkPrefix !== currentPrefix) {
-        $(this).css("display", "none");
+      if (linkPrefix === currentPrefix) {
+        kept.push(this);
       }
     });
+
+    if (!kept.length) {
+      $container.empty();
+      return 0;
+    }
+
+    var html = kept
+      .map(function (link) {
+        return $("<div>").append($(link).clone()).html();
+      })
+      .join(", ");
+    $container.html(html);
+    return kept.length;
   }
 
   /**
@@ -1402,7 +1424,14 @@
             $pageIds.html(
               renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()),
             );
-            filterPageLinksByPrefix($pageIds);
+            var visibleCount = filterPageLinksByPrefix($pageIds);
+            if (!visibleCount) {
+              $pageRow.attr("hidden", true);
+              return;
+            }
+            $card
+              .find('[data-ref="search-result-page-label"]')
+              .text(visibleCount > 1 ? "Sources:" : "Source:");
           });
         })($item);
       }

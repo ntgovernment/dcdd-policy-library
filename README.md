@@ -106,6 +106,7 @@ Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.
 - Base prefix means: `scheme + host + first path segment` (example: `https://internal.nt.gov.au/dcdd`).
 - Existing path exclusions still apply (`/news/`, `/dev/`, and `archive`).
 - On local/dev hosts (`localhost`, `127.0.0.1`, `*.github.io`), this prefix filter is not enforced.
+- The rendered Sources markup is rebuilt from the remaining links so commas/separators stay correct; if no links remain in card view, the entire Sources row is hidden.
 
 When the current URL contains `/_nocache` or `/_recache`, the page-link resolver bypasses the persistent `localStorage` layer and fetches fresh link data instead. The in-memory `pageLinksCache` remains active during that page load so card/table rendering, pagination, sorting, and filtering still reuse the same in-flight/resolved Promise.
 
