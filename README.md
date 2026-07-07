@@ -103,6 +103,16 @@ Implementation details:
 - Example no-split: `Conduct, integrity and risk`.
 - Search facet counts and filtering in `src/js/coveo-search.js` follow this contract.
 
+## Sort controls
+
+Sorting is client-side and does not trigger a new Coveo request.
+
+- Desktop uses expanded `Sort by` radio buttons above the `Filters` heading in the sidebar.
+- Mobile uses matching `Sort by` radio buttons inside the filter drawer.
+- Desktop radios use `name="doc-search-sort"`; drawer radios use `name="doc-search-drawer-sort"` so drawer changes are staged until `Apply filters` is clicked.
+- Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
+- The table/card view toggle sits in the results header controls row, right-aligned where the old inline sort dropdown used to be.
+
 ## File metadata and text fragments
 
 File metadata is displayed as `TYPE (SIZE)`, for example `DOCX (615.5 KB)` or `PDF (283.4 KB)`.

@@ -91,7 +91,7 @@
  *   #doc-search-table-body        <tbody> populated with table rows
  *   #doc-search-results-summary   receives "Showing X–Y of Z results" text
  *   #doc-search-pagination        receives prev/page-number/next buttons
- *   select[name="doc-search-sort"] dropdown; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
+ *   input[name="doc-search-sort"] desktop sort radios; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   #doc-search-view-toggle       button; aria-pressed="true" = table view active
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
  *   #doc-search-category-filters  <ul> receives Category facet checkboxes
@@ -793,6 +793,13 @@
   var filterAnimTimeout = null;
   var visibleResultIds = new Set();
 
+  var SORT_VALUES = {
+    relevancy: true,
+    "date descending": true,
+    "alpha ascending": true,
+    "alpha descending": true,
+  };
+
   // ── URL builder ──────────────────────────────────────────────────────────────
   /**
    * Builds the Coveo search endpoint URL for the given query string.
@@ -930,6 +937,20 @@
       "resourceowner",
       "#doc-search-owner",
       activeOwnerFilter,
+    );
+    syncSortControls();
+  }
+
+  function syncSortControls() {
+    $('input[name="doc-search-sort"]').prop("checked", false);
+    $('input[name="doc-search-sort"][value="' + currentSort + '"]').prop(
+      "checked",
+      true,
+    );
+    $('input[name="doc-search-drawer-sort"]').prop("checked", false);
+    $('input[name="doc-search-drawer-sort"][value="' + currentSort + '"]').prop(
+      "checked",
+      true,
     );
   }
 
@@ -2178,7 +2199,7 @@
       "#doc-search-drawer-owner",
       activeOwnerFilter,
     );
-    $('select[name="doc-search-drawer-sort"]').val(currentSort);
+    syncSortControls();
   }
 
   /** Opens the mobile filter drawer. */
@@ -2228,9 +2249,9 @@
   $(document).on("click", "#doc-search-drawer-apply", function () {
     // Read sort
     var drawerSort =
-      $('select[name="doc-search-drawer-sort"]').val() || "relevancy";
+      $('input[name="doc-search-drawer-sort"]:checked').val() || "relevancy";
     currentSort = drawerSort;
-    $('select[name="doc-search-sort"]').val(drawerSort);
+    syncSortControls();
 
     // Read owner
     var drawerOwner = $('select[name="doc-search-drawer-owner"]').val() || "";
@@ -2262,7 +2283,11 @@
   // Clear all inside drawer (resets UI without applying)
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
-    $('select[name="doc-search-drawer-sort"]').val("relevancy");
+    $('input[name="doc-search-drawer-sort"]').prop("checked", false);
+    $('input[name="doc-search-drawer-sort"][value="relevancy"]').prop(
+      "checked",
+      true,
+    );
     $('select[name="doc-search-drawer-owner"]').val("");
     updateDrawerItemCount();
   });
@@ -2345,7 +2370,7 @@
   });
 
   // ── Event: sort change ───────────────────────────────────────────────────────
-  $(document).on("change", 'select[name="doc-search-sort"]', function () {
+  $(document).on("change", 'input[name="doc-search-sort"]', function () {
     currentSort = $(this).val();
     applySort();
     applyFilters();
@@ -2416,10 +2441,10 @@
     initialQuery = getUrlParam("searchterm") || "";
     var urlSort = getUrlParam("sort");
 
-    if (urlSort) {
+    if (urlSort && SORT_VALUES[urlSort]) {
       currentSort = urlSort;
-      $('select[name="doc-search-sort"]').val(urlSort);
     }
+    syncSortControls();
 
     // Restore view preference from localStorage
     var savedView = localStorage.getItem("docSearchView");
