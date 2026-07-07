@@ -231,11 +231,11 @@ function buildDocumentsHtml(results) {
       var size = (r.resourcefilesize || "").trim();
       var meta =
         tlabel && size
-          ? " (" + tlabel + " " + size + ")"
+          ? tlabel + " (" + size + ")"
           : tlabel
-            ? " (" + tlabel + ")"
+            ? tlabel
             : size
-              ? " (" + size + ")"
+              ? "(" + size + ")"
               : "";
       lines.push('                            <div class="policy-document">');
       lines.push(
@@ -254,7 +254,7 @@ function buildDocumentsHtml(results) {
       );
       lines.push(
         "                                            <h4>" +
-          escHtml(title + meta) +
+          escHtml(title + (meta ? " " + meta : "")) +
           "</h4>",
       );
       lines.push("                                        </div>");

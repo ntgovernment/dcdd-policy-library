@@ -76,7 +76,7 @@ document-library/
 - **Three-File HTML Synchronization**:
   - `src/search-results.html` is the source template.
   - `index.html` (root) and `search-section-preview.html` are standalone files.
-  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, ensuring all structural changes to the search results layout, filters, and card template are synced to the local dev preview automatically.
+  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, replacing the generated search UI block through the preview page's search bundle script tag. This ensures structural changes to the search results layout, filters, card template, and adjacent search UI markup such as the view preference modal are synced to the local dev preview automatically without duplication.
 - **CSS Tokens**:
   - Never declare `:root` variables in `search-widget.css` or `collection-page.css` directly. Always place them in `tokens.css`.
 - **`!important` CSS Overrides**:
@@ -89,8 +89,9 @@ document-library/
 - **Clear All Filters Button**:
   - In the desktop sidebar layout, the "Clear all" button is placed inline to the right of the "Filters" heading. In the mobile layout, the clear button sits at the bottom of the scrollable drawer body.
 - **File Metadata Formatting**:
-  - The document type and size metadata (e.g., `(PDF 366.9 KB)`) is rendered independently from the main title link in a `<span class="doc-search-result__file-meta">` to ensure it is not clickable and is styled separately (14px, regular weight, gray text).
-  - The `formatFileMetaHtml(raw)` function constructs this HTML string in `coveo-search.js`, while `formatFileMeta(raw)` returns the plain text representation. This exact text string is used to append a text fragment to collection links, allowing the browser to highlight the matching document when arriving at the collection page.
+  - The document type and size metadata (e.g., `PDF (366.9 KB)`) is rendered independently from the main title link in a `<span class="doc-search-result__file-meta">` to ensure it is not clickable and is styled separately (14px, regular weight, gray text).
+  - The `formatFileMetaHtml(raw)` function constructs this HTML string in `coveo-search.js`, while `formatFileMeta(raw)` returns the plain text representation. This exact text string is used to append a text fragment to collection and source page links, allowing the browser to highlight the matching document when arriving at the target page.
+  - Generated collection page headings use the same visible format: `Title TYPE (SIZE)`, for example `DCDD recruitment guidelines DOCX (615.5 KB)`.
 - **Hiding Empty Badge/Tag Markup**:
   - Empty badges or tags (such as the document type tag `[data-ref="search-result-doctype"]` when no `resourcedoctype` is present) must be hidden using the `hidden` attribute.
   - To ensure elements with `display: inline-flex` (like `.doc-search-result__tag`) are hidden correctly overriding class rules, a specific `.doc-search-result__tag[hidden] { display: none !important; }` rule is declared in CSS.

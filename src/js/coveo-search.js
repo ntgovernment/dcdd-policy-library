@@ -61,11 +61,11 @@
  * result.raw.asseturl                 — primary document URL
  * result.raw.description              — card description (falls back to result.excerpt)
  * result.raw.resourcedoctype          — "Type" facet value and tag label
-* result.raw.category                 — "Category" facet value(s). Coveo may return multi-values as comma-separated
-*                                       strings (e.g. "Finance and travel, Purchases and assets").
-*                                       splitCategoryValues() supports comma and semicolon delimiters and applies
-*                                       a capitalization rule for comma splits: split only when the next non-space
-*                                       character is uppercase (e.g. preserves "Conduct, integrity and risk").
+ * result.raw.category                 — "Category" facet value(s). Coveo may return multi-values as comma-separated
+ *                                       strings (e.g. "Finance and travel, Purchases and assets").
+ *                                       splitCategoryValues() supports comma and semicolon delimiters and applies
+ *                                       a capitalization rule for comma splits: split only when the next non-space
+ *                                       character is uppercase (e.g. preserves "Conduct, integrity and risk").
  *                                       The raw string is
  *                                       stored as the data-category attribute on rendered card <li> and table <tr>
  *                                       elements; filtering matches any token against activeCategoryFilters.
@@ -101,7 +101,7 @@
  * Card template data-ref slots (inside .search-template):
  *   [data-ref="search-result-link"]            <a> href = asseturl
  *   [data-ref="search-result-title"]           document title with formatFileMeta() suffix
- *                                                e.g. "My Document (PDF 354.2 KB)"
+ *                                                e.g. "My Document PDF (354.2 KB)"
  *   [data-ref="search-result-extlink"]         external-link icon — permanently hidden (display:none in CSS; JS does not remove hidden attr)
  *   [data-ref="search-result-description"]     description / excerpt text
  *   [data-ref="search-result-page-row"]         entire row hidden when no Source links remain;
@@ -858,18 +858,18 @@
   };
 
   /**
-   * Builds a parenthetical file-type/size suffix for appending to a document title.
+   * Builds file-type/size metadata for appending to a document title.
    * Uses FILE_TYPE_LABELS to map raw.resourcetype to a display label (e.g. "PDF").
    * Returns an empty string when neither raw.resourcetype nor raw.resourcefilesize
    * is present.
    * @param {Object} raw  result.raw from the Coveo API response.
-   * @returns {string}  e.g. " (PDF 354.2 KB)", " (DOCX)", " (58.5 KB)", or "".
+   * @returns {string}  e.g. "PDF (354.2 KB)", "DOCX", "(58.5 KB)", or "".
    */
   function formatFileMeta(raw) {
     var ext = FILE_TYPE_LABELS[raw.resourcetype] || "";
     var size = raw.resourcefilesize || "";
-    if (ext && size) return "(" + ext + " " + size + ")";
-    if (ext) return "(" + ext + ")";
+    if (ext && size) return ext + " (" + size + ")";
+    if (ext) return ext;
     if (size) return "(" + size + ")";
     return "";
   }
