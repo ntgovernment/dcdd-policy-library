@@ -111,7 +111,7 @@ Sorting is client-side and does not trigger a new Coveo request.
 - Mobile uses matching `Sort by` radio buttons inside the filter drawer.
 - Desktop radios use `name="doc-search-sort"`; drawer radios use `name="doc-search-drawer-sort"` so drawer changes are staged until `Apply filters` is clicked.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
-- The table/card view toggle sits in the results header controls row, right-aligned where the old inline sort dropdown used to be.
+- The results summary (`Showing X-Y of N results`) and table/card view toggle share one results header row: summary left, view toggle right. Keep the view toggle right-aligned where the old inline sort dropdown used to be.
 
 ## File metadata and text fragments
 

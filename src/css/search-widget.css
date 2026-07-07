@@ -172,14 +172,17 @@ tr.doc-search-row--moving {
 /* ── Results header bar ───────────────────────────────────────────────────── */
 .doc-search-results-header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 12px 0 16px;
   border-bottom: 2px solid var(--clr-border-subtle);
   margin-bottom: 0;
 }
 
 .doc-search-results-summary {
+  flex: 1 1 auto;
+  margin: 0 !important;
   font-size: var(--font-size-sm);
   color: var(--clr-text-alt);
 }
@@ -189,6 +192,7 @@ tr.doc-search-row--moving {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex: 0 0 auto;
   gap: 16px;
 }
 
