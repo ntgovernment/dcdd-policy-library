@@ -47,11 +47,11 @@
  * Sorting is performed client-side after the full result set is received:
  *   applySort() is called after every fetch and after every sort radio button change.
  *   "relevancy"         — preserves the original API response order (originalResults)
- *   "date descending"   — sorts allResults by raw.resourceupdated descending
+ *   "date descending"   — sorts allResults by raw.approveddate descending
  *   "alpha ascending"   — sorts allResults by raw.resourcefriendlytitle A–Z (localeCompare)
  *   "alpha descending"  — sorts allResults by raw.resourcefriendlytitle Z–A (localeCompare)
- *   raw.resourceupdated format is "YYYY-MM-DD HH:mm:ss"; lexicographic comparison
- *   produces the correct chronological order for that format.
+ *   raw.approveddate format is "DD MM YYYY"; dates are parsed before comparison
+ *   so chronological ordering remains correct.
  *
  * ── COVEO RESULT FIELDS USED ─────────────────────────────────────────────────
  * result.title                        — fallback title
@@ -72,7 +72,7 @@
  * result.raw.collectionname           — human-readable collection name; used as display text in card and table views
  * result.raw.collectionassetid        — Squiz asset ID for the collection (not used in rendering)
  * result.raw.collectionurl            — direct collection URL; used as href in both card and table view
- * result.raw.resourceupdated          — last-updated date (YYYY-MM-DD HH:mm:ss)
+ * result.raw.approveddate            — last-updated date (DD MM YYYY)
  * result.raw.resourcetype             — file type key (e.g. "pdf_file", "word_doc"); mapped to uppercase label
  * result.raw.resourcefilesize         — human-readable file size (e.g. "354.2 KB")
  * result.raw.assetassetid              — Squiz Matrix asset ID; used to fetch upstream
@@ -836,24 +836,95 @@
     "December",
   ];
   /**
-   * Formats a Coveo date string as "D\u00a0MMMM YYYY" (e.g. "5\u00a0March 2026").
-   * The non-breaking space between day and month prevents line-wrapping at that point.
-   * Returns the original string unchanged when it does not match the expected format,
-   * and returns "" when dateStr is falsy.
-   * @param {string} dateStr  Date in "YYYY-MM-DD HH:mm:ss" format (raw.resourceupdated).
+   * Parses raw.approveddate values in "DD MM YYYY" format.
+   * Returns null when input is missing/invalid.
+   * @param {string} dateStr
+   * @returns {{day:number,monthIndex:number,year:number,date:Date}|null}
+   */
+  function parseApprovedDate(dateStr) {
+    if (!dateStr) return null;
+    var m = String(dateStr).trim().match(/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/);
+    if (!m) return null;
+
+    var day = parseInt(m[1], 10);
+    var month = parseInt(m[2], 10);
+    var year = parseInt(m[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    var dt = new Date(year, month - 1, day);
+    if (
+      dt.getFullYear() !== year ||
+      dt.getMonth() !== month - 1 ||
+      dt.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return {
+      day: day,
+      monthIndex: month - 1,
+      year: year,
+      date: dt,
+    };
+  }
+
+  /**
+   * Parses raw.resourceupdated values in "YYYY-MM-DD HH:mm:ss" format.
+   * Returns null when input is missing/invalid.
+   * @param {string} dateStr
+   * @returns {{day:number,monthIndex:number,year:number,date:Date}|null}
+   */
+  function parseResourceUpdatedDate(dateStr) {
+    if (!dateStr) return null;
+    var m = String(dateStr)
+      .trim()
+      .match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+\d{1,2}:\d{1,2}:\d{1,2})?$/);
+    if (!m) return null;
+
+    var year = parseInt(m[1], 10);
+    var month = parseInt(m[2], 10);
+    var day = parseInt(m[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    var dt = new Date(year, month - 1, day);
+    if (
+      dt.getFullYear() !== year ||
+      dt.getMonth() !== month - 1 ||
+      dt.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return {
+      day: day,
+      monthIndex: month - 1,
+      year: year,
+      date: dt,
+    };
+  }
+
+  function getBestDateParts(raw) {
+    var parsedApproved = parseApprovedDate((raw || {}).approveddate);
+    if (parsedApproved) return parsedApproved;
+    return parseResourceUpdatedDate((raw || {}).resourceupdated);
+  }
+
+  /**
+   * Formats raw.approveddate as "D\u00a0MMMM YYYY" (e.g. "5\u00a0March 2026").
+   * Returns "" for missing or invalid inputs.
+   * @param {string} dateStr Date in "DD MM YYYY" format (raw.approveddate).
    * @returns {string}
    */
   function formatDate(dateStr) {
-    if (!dateStr) return "";
-    // Parse "YYYY-MM-DD HH:mm:ss" and format as "D\u00a0MMMM YYYY"
-    // Non-breaking space between day and month prevents them wrapping onto separate lines
-    var m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) {
-      var day = parseInt(m[3], 10);
-      var month = MONTHS[parseInt(m[2], 10) - 1];
-      return day + "\u00a0" + month + " " + m[1];
-    }
-    return dateStr;
+    var parsed = parseApprovedDate(dateStr);
+    if (!parsed) return "";
+    return parsed.day + " " + MONTHS[parsed.monthIndex] + " " + parsed.year;
+  }
+
+  function formatDateFromRaw(raw) {
+    var parsed = getBestDateParts(raw);
+    if (!parsed) return "";
+    return parsed.day + " " + MONTHS[parsed.monthIndex] + " " + parsed.year;
   }
 
   // ── File type labels ──────────────────────────────────────────────────────────
@@ -1213,8 +1284,7 @@
   /**
    * Rebuilds allResults from originalResults according to currentSort.
    * "relevancy" restores the original API order. "date descending" / "date ascending"
-   * sort on raw.resourceupdated using lexicographic comparison, which is correct for
-   * the "YYYY-MM-DD HH:mm:ss" format.
+   * parse raw.approveddate ("DD MM YYYY") before comparing.
    */
   function applySort() {
     if (currentSort === "relevancy") {
@@ -1240,11 +1310,14 @@
       });
     } else {
       allResults = originalResults.slice().sort(function (a, b) {
-        var da = (a.raw || {}).resourceupdated || "";
-        var db = (b.raw || {}).resourceupdated || "";
+        var pa = getBestDateParts(a.raw || {});
+        var pb = getBestDateParts(b.raw || {});
+        if (!pa && !pb) return 0;
+        if (!pa) return 1;
+        if (!pb) return -1;
         return currentSort === "date descending"
-          ? db.localeCompare(da)
-          : da.localeCompare(db);
+          ? pb.date.getTime() - pa.date.getTime()
+          : pa.date.getTime() - pb.date.getTime();
       });
     }
   }
@@ -1619,9 +1692,14 @@
       }
 
       // Last updated
-      $item
-        .find('[data-ref="search-result-last-updated"]')
-        .text(formatDate(raw.resourceupdated));
+      var updated = formatDateFromRaw(raw);
+      var $updatedWrap = $item.find(".doc-search-result__updated");
+      if (updated) {
+        $item.find('[data-ref="search-result-last-updated"]').text(updated);
+        $updatedWrap.show();
+      } else {
+        $updatedWrap.hide();
+      }
 
       $list.append($item);
     });
@@ -1645,7 +1723,7 @@
       var assetAssetId = raw.assetassetid || "";
       var titleText = raw.resourcefriendlytitle || result.title || "";
       var doctype = raw.resourcedoctype || "";
-      var updated = formatDate(raw.resourceupdated);
+      var updated = formatDateFromRaw(raw);
       var fileMeta = formatFileMeta(raw).trim();
       var immediateSourceLinks = getImmediateSourceLinks(raw);
 
