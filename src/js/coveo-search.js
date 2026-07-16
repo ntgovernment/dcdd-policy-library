@@ -11,7 +11,7 @@
  * API response ingestion time and never appear in search results, pagination
  * counts, or facet filter lists. Change EXCLUDED_DOCTYPE to adjust this.
  *
- * The Type and Category filter sidebars always show the complete list of values
+ * The Type and Topic filter sidebars always show the complete list of values
  * from the full document corpus (masterResults), regardless of the active search
  * query. Only the count numbers beside each value change. Values with a count of
  * zero are shown as disabled so users understand they exist but yield no results.
@@ -61,14 +61,14 @@
  * result.raw.asseturl                 — primary document URL
  * result.raw.description              — card description (falls back to result.excerpt)
  * result.raw.resourcedoctype          — "Type" facet value and tag label
- * result.raw.category                 — "Category" facet value(s). Coveo may return multi-values as comma-separated
+ * result.raw.topic                    — "Topic" facet value(s). Coveo may return multi-values as comma-separated
  *                                       strings (e.g. "Finance and travel, Purchases and assets").
- *                                       splitCategoryValues() supports comma and semicolon delimiters and applies
+ *                                       splitTopicValues() supports comma and semicolon delimiters and applies
  *                                       a capitalization rule for comma splits: split only when the next non-space
  *                                       character is uppercase (e.g. preserves "Conduct, integrity and risk").
  *                                       The raw string is
- *                                       stored as the data-category attribute on rendered card <li> and table <tr>
- *                                       elements; filtering matches any token against activeCategoryFilters.
+ *                                       stored as the data-topic attribute on rendered card <li> and table <tr>
+ *                                       elements; filtering matches any token against activeTopicFilters.
  * result.raw.collectionname           — human-readable collection name; used as display text in card and table views
  * result.raw.collectionassetid        — Squiz asset ID for the collection (not used in rendering)
  * result.raw.collectionurl            — direct collection URL; used as href in both card and table view
@@ -94,7 +94,7 @@
  *   input[name="doc-search-sort"] desktop sort radios; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   #doc-search-view-toggle       button; aria-pressed="true" = card descriptions shown
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
- *   #doc-search-category-filters  <ul> receives Category facet checkboxes
+ *   #doc-search-topic-filters     <ul> receives Topic facet checkboxes
  *   #doc-search-user-message      receives error / no-results HTML (see buildNoResultsHtml())
  *   .search-template[hidden]      card template element, cloned per result
  *
@@ -142,7 +142,7 @@
  *                                        whose URL path contains "/news/", "/dev/", or
  *                                        "archive" are excluded.
  *
- * Facet items (built by buildFacet into #doc-search-type-filters / #doc-search-category-filters):
+ * Facet items (built by buildFacet into #doc-search-type-filters / #doc-search-topic-filters):
  *   input[data-facet][data-value]       checkbox; data-facet = raw field name, data-value = raw value
  *   .doc-search-facet-item              <label> wrapper
  *   .doc-search-facet-item__label       human-readable value text
@@ -184,7 +184,7 @@
  *   masterResults         Array   — complete document corpus (all results for an empty query),
  *                                   excluding EXCLUDED_DOCTYPE documents. Populated once on the
  *                                   first runSearch() call and never cleared. Provides the stable
- *                                   value list for all facets so that Type and Category options
+ *                                   value list for all facets so that Type and Topic options
  *                                   do not disappear when a search query narrows the result set.
  *   originalResults       Array   — raw API response order for the current query;
  *                                   restored as allResults when sort = "relevancy"
@@ -192,8 +192,8 @@
  *   filteredResults       Array   — subset of allResults after checkbox filters applied
  *   currentPage           Number  — active pagination page (1-based)
  *   activeTypeFilters     Set     — checked "Type" facet values (raw.resourcedoctype)
- *   activeCategoryFilters Set     — checked "Category" facet values; each entry is a single trimmed token
- *                                   derived from splitCategoryValues() for raw.category
+ *   activeTopicFilters    Set     — checked "Topic" facet values; each entry is a single trimmed token
+ *                                   derived from splitTopicValues() for raw.topic
  *   currentSort           String  — "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   currentQuery          String  — last query string passed to runSearch()
  *   matrixMockCache       Object  — cached contents of matrix-asset-links.json (dev mode only;
@@ -220,7 +220,7 @@
  * ── FACET STRATEGY ───────────────────────────────────────────────────────────
  * buildFacet(results, field, containerId, activeSet) uses TWO data sources:
  *   • masterResults  → the canonical set of all possible values for `field`.
- *                      Guarantees that every Type/Category is always rendered.
+ *                      Guarantees that every Type/Topic is always rendered.
  *   • results        → the current (query-filtered) result set; used only for
  *                      computing per-value counts shown next to each label.
  * Values present in masterResults but absent from results receive a count of 0
@@ -790,7 +790,7 @@
   var masterResults = []; // full corpus — all documents regardless of query; used to keep facet lists stable
   var currentPage = 1;
   var activeTypeFilters = new Set();
-  var activeCategoryFilters = new Set();
+  var activeTopicFilters = new Set();
   var activeOwnerFilter = "";
   var currentSort = "relevancy";
   var currentQuery = "";
@@ -1024,7 +1024,7 @@
 
   // ── Filter building ──────────────────────────────────────────────────────────
   /**
-   * Rebuilds both the Type and Category facet lists.
+  * Rebuilds both the Type and Topic facet lists.
    * Delegates to buildFacet() for each facet field.
    *
    * `results` is used only to compute per-value counts — it should be allResults
@@ -1048,9 +1048,9 @@
     );
     buildFacet(
       results,
-      "category",
-      "#doc-search-category-filters",
-      activeCategoryFilters,
+      "topic",
+      "#doc-search-topic-filters",
+      activeTopicFilters,
     );
     buildDropdownFacet(
       results,
@@ -1078,7 +1078,7 @@
    * Populates a facet <ul> with one checkbox item per known value for `field`.
    *
    * Value list  — derived from masterResults (the full corpus), so the same
-   *               set of Type / Category options is always rendered regardless
+  *               set of Type / Topic options is always rendered regardless
    *               of how narrow the active search query is.
    * Counts      — derived from `results` (typically allResults for the current
    *               query), reflecting how many documents in the current result
@@ -1095,15 +1095,15 @@
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
-   * Multi-value fields: category values may arrive comma-delimited or
+  * Multi-value fields: topic values may arrive comma-delimited or
    * semicolon-delimited (e.g. "Fraud and corruption, Finance and travel" or
-   * "Fraud and corruption; Finance and travel"). splitCategoryValues() applies
+  * "Fraud and corruption; Finance and travel"). splitTopicValues() applies
    * a capitalization rule for comma separation: split only when the next token
    * starts with an uppercase letter. Labels like "Conduct, integrity and risk"
    * remain intact.
    *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
-   * @param {string} field        result.raw property name (e.g. "resourcedoctype", "category").
+  * @param {string} field        result.raw property name (e.g. "resourcedoctype", "topic").
    * @param {string} containerId  jQuery selector for the target <ul> element.
    * @param {Set}    activeSet    Currently active filter values; matching checkboxes are rendered checked.
    */
@@ -1127,15 +1127,15 @@
   }
 
   /**
-   * Splits category values into trimmed, non-empty tokens.
+  * Splits topic values into trimmed, non-empty tokens.
    * Supports semicolon and comma delimiters for multi-value records.
    * For comma-delimited values, it only splits at commas where the next
    * non-space character is uppercase, so labels such as
-   * "Conduct, integrity and risk" remain a single category.
+  * "Conduct, integrity and risk" remain a single topic.
    * @param {string} val
    * @returns {string[]}
    */
-  function splitCategoryValues(val) {
+  function splitTopicValues(val) {
     if (!val) return [];
 
     var raw = String(val).trim();
@@ -1167,9 +1167,9 @@
       }
 
       var next = j < raw.length ? raw.charAt(j) : "";
-      var startsNewCategory = /[A-Z]/.test(next);
+      var startsNewTopic = /[A-Z]/.test(next);
 
-      if (startsNewCategory) {
+      if (startsNewTopic) {
         if (current.trim()) {
           parts.push(current.trim());
         }
@@ -1193,8 +1193,8 @@
       var val = (r.raw || {})[field];
       if (val) {
         var facetValues =
-          field === "category"
-            ? splitCategoryValues(val)
+          field === "topic"
+            ? splitTopicValues(val)
             : splitFieldValues(val);
         facetValues.forEach(function (v) {
           counts[v] = (counts[v] || 0) + 1;
@@ -1208,8 +1208,8 @@
       var val = (r.raw || {})[field];
       if (val) {
         var masterValues =
-          field === "category"
-            ? splitCategoryValues(val)
+          field === "topic"
+            ? splitTopicValues(val)
             : splitFieldValues(val);
         masterValues.forEach(function (v) {
           masterKeys[v] = true;
@@ -1393,7 +1393,7 @@
    */
   function updateDrawerItemCount() {
     var drawerTypeFilters = new Set();
-    var drawerCategoryFilters = new Set();
+    var drawerTopicFilters = new Set();
     $("#doc-search-drawer [data-facet]").each(function () {
       if ($(this).is(":checked")) {
         var field = $(this).data("facet");
@@ -1401,7 +1401,7 @@
         if (field === "resourcedoctype") {
           drawerTypeFilters.add(value);
         } else {
-          drawerCategoryFilters.add(value);
+          drawerTopicFilters.add(value);
         }
       }
     });
@@ -1420,9 +1420,9 @@
         return false;
       }
       if (
-        drawerCategoryFilters.size > 0 &&
-        !splitCategoryValues(raw.category || "").some(function (v) {
-          return drawerCategoryFilters.has(v);
+        drawerTopicFilters.size > 0 &&
+        !splitTopicValues(raw.topic || "").some(function (v) {
+          return drawerTopicFilters.has(v);
         })
       ) {
         return false;
@@ -1514,9 +1514,9 @@
         return false;
       }
       if (
-        activeCategoryFilters.size > 0 &&
-        !splitCategoryValues(raw.category || "").some(function (v) {
-          return activeCategoryFilters.has(v);
+        activeTopicFilters.size > 0 &&
+        !splitTopicValues(raw.topic || "").some(function (v) {
+          return activeTopicFilters.has(v);
         })
       ) {
         return false;
@@ -1667,8 +1667,8 @@
         .find('[data-ref="search-result-description"]')
         .text(raw.description || result.excerpt || "");
 
-      // Category (hidden data attribute for filter matching)
-      $item.attr("data-category", raw.category || "");
+      // Topic (hidden data attribute for filter matching)
+      $item.attr("data-topic", raw.topic || "");
 
       // Collection row
       var collectionName = raw.collectionname || "";
@@ -1818,7 +1818,7 @@
       );
       var id = resultId(result);
       $row.attr("data-result-id", id);
-      $row.attr("data-category", raw.category || "");
+      $row.attr("data-topic", raw.topic || "");
       if (enteringIds && enteringIds.has(id)) {
         $row.addClass("doc-search-row--entering");
       }
@@ -2209,10 +2209,10 @@
    *   applySort() → buildFilters(allResults) → applyFilters() → renderPage(1)
    *
    * When the query returns zero results, buildFilters(allResults) is still called
-   * (with an empty array) so the sidebar renders the full Type/Category list with
+  * (with an empty array) so the sidebar renders the full Type/Topic list with
    * counts of 0, rather than disappearing entirely.
    *
-   * Existing sort and filter state (activeTypeFilters, activeCategoryFilters,
+  * Existing sort and filter state (activeTypeFilters, activeTopicFilters,
    * currentSort) are preserved across calls. Clear those Sets before calling if
    * a clean filter slate is needed.
    *
@@ -2320,9 +2320,9 @@
     );
     buildFacet(
       allResults,
-      "category",
-      "#doc-search-drawer-category-filters",
-      activeCategoryFilters,
+      "topic",
+      "#doc-search-drawer-topic-filters",
+      activeTopicFilters,
     );
     buildDropdownFacet(
       allResults,
@@ -2391,7 +2391,7 @@
 
     // Rebuild filter sets from drawer checkboxes
     activeTypeFilters.clear();
-    activeCategoryFilters.clear();
+    activeTopicFilters.clear();
     $("#doc-search-drawer [data-facet]").each(function () {
       if ($(this).is(":checked")) {
         var field = $(this).data("facet");
@@ -2399,7 +2399,7 @@
         if (field === "resourcedoctype") {
           activeTypeFilters.add(value);
         } else {
-          activeCategoryFilters.add(value);
+          activeTopicFilters.add(value);
         }
       }
     });
@@ -2434,7 +2434,7 @@
   $(document).on("click", "#doc-search-sidebar-clear", function () {
     $("#doc-search-sidebar [data-facet]").prop("checked", false);
     activeTypeFilters.clear();
-    activeCategoryFilters.clear();
+    activeTopicFilters.clear();
     activeOwnerFilter = "";
     $('select[name="doc-search-owner"]').val("");
     applyFilters();
@@ -2451,7 +2451,7 @@
     var field = $cb.data("facet");
     var value = $cb.data("value");
     var set =
-      field === "resourcedoctype" ? activeTypeFilters : activeCategoryFilters;
+      field === "resourcedoctype" ? activeTypeFilters : activeTopicFilters;
 
     if ($cb.is(":checked")) {
       set.add(value);

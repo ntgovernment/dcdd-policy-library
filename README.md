@@ -94,9 +94,9 @@ Implementation details:
 - If `#asset-contents` is not present immediately, a `MutationObserver` watches for late insertion.
 - Observers disconnect after a successful move, with a safety timeout to avoid long-lived observers.
 
-## Category value format
+## Topic value format
 
-`raw.category` values are parsed as multi-value categories and support both comma and semicolon delimiters.
+`raw.topic` values are parsed as multi-value topics and support both comma and semicolon delimiters.
 
 - Multi-value input may be comma-delimited (Coveo default) or semicolon-delimited.
 - Comma split rule: split only when the next non-space character starts with an uppercase letter.
