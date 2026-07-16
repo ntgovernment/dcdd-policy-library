@@ -113,6 +113,70 @@ Sorting is client-side and does not trigger a new Coveo request.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
 - The results summary (`Showing X-Y of N results`) and table/card view toggle share one results header row: summary left, view toggle right. Keep the view toggle right-aligned where the old inline sort dropdown used to be.
 
+## Search analytics
+
+The search runtime now emits GA4 events for submitted searches and zero-result queries from `src/js/coveo-search.js`.
+
+- Custom event: `policy_search`
+- Custom event: `policy_search_zero_results`
+- Custom parameters sent: `search_term`, `results_count`, `search_source`
+
+Implementation notes:
+
+- Events are query-scoped and only fire for submitted searches with a non-empty `searchterm` URL parameter.
+- Zero-results tracking is limited to the initial submitted query outcome. Filter-driven empty states do not emit the zero-results event.
+- The runtime fails safely when `window.gtag` is unavailable, so local/generated builds can still run without GA.
+
+GA4 setup required:
+
+1. In the GA4 web data stream, keep Enhanced Measurement enabled.
+2. Add `searchterm` as an additional site-search query parameter so GA4 also collects the built-in `view_search_results` event for this page.
+3. Register custom dimensions for `search_term`, `results_count`, and `search_source` on the custom events if you want to report on them in standard GA4 reports or Looker Studio.
+
+### GA4 setup steps (recommended order)
+
+1. Open GA4 Admin -> Data streams -> Web stream used by the search page.
+2. Confirm Enhanced measurement is enabled and Site search is turned on.
+3. In Site search advanced settings, add `searchterm` as an additional query parameter.
+4. In Admin -> Custom definitions, create event-scoped custom dimensions:
+  - `search_term`
+  - `results_count`
+  - `search_source`
+5. In DebugView, run test searches and verify events:
+  - `view_search_results` (built-in GA4 site-search event)
+  - `policy_search` (custom event from this bundle)
+  - `policy_search_zero_results` (custom zero-results event)
+6. Wait for GA4 processing so custom definitions are available in standard reports and Looker Studio.
+
+### Looker Studio reusable dashboard steps
+
+1. Create a new report with the GA4 property as the data source.
+2. Add report-level controls (not page-level only):
+  - Date range control
+  - Filter control for Event name
+  - Filter control for Search source
+3. Add calculated fields in the data source for reusable metrics:
+  - `zero_result_flag`:
+    `CASE WHEN Event name = "policy_search_zero_results" THEN 1 ELSE 0 END`
+  - `search_event_flag`:
+    `CASE WHEN Event name = "policy_search" OR Event name = "view_search_results" THEN 1 ELSE 0 END`
+  - `zero_result_rate`:
+    `SUM(zero_result_flag) / NULLIF(SUM(search_event_flag), 0)`
+4. Build core charts:
+  - Scorecards: total searches, zero-result searches, zero-result rate
+  - Time series: searches vs zero-result searches
+  - Table: top search terms by event count
+  - Table: zero-result terms only (filter Event name = `policy_search_zero_results`)
+5. Save this report as the template copy for other teams/properties.
+
+### Reuse and handover checklist
+
+1. Keep GA4 field names consistent (`search_term`, `results_count`, `search_source`) across properties.
+2. Keep report-level controls in the template so copied dashboards behave consistently.
+3. Add a hidden "Setup notes" page in Looker Studio with required events and dimensions.
+4. When onboarding a new property, duplicate the template and swap the GA4 data source.
+5. Validate one positive search and one zero-result search in DebugView before sharing dashboard links.
+
 ## File metadata and text fragments
 
 File metadata is displayed as `TYPE (SIZE)`, for example `DOCX (615.5 KB)` or `PDF (283.4 KB)`.

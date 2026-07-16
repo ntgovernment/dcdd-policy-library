@@ -777,6 +777,11 @@
   var RESULTS_PER_PAGE_TABLE = 15;
   var MAX_FACET_VISIBLE = 7;
 
+  var SEARCH_ANALYTICS_EVENTS = {
+    search: "policy_search",
+    zeroResults: "policy_search_zero_results",
+  };
+
   // ── Module state ─────────────────────────────────────────────────────────────
   var originalResults = []; // API response order — restored when sort = relevancy
   var EXCLUDED_DOCTYPE = "Supporting document"; // hard-excluded from all result sets and facets
@@ -792,6 +797,7 @@
   var initialQuery = "";
   var filterAnimTimeout = null;
   var visibleResultIds = new Set();
+  var trackedSearchEvents = {};
 
   var SORT_VALUES = {
     relevancy: true,
@@ -808,6 +814,47 @@
    */
   function buildCoveoUrl(query) {
     return COVEO_BASE_URL + "?searchterm=" + encodeURIComponent(query);
+  }
+
+  function trackAnalyticsEvent(eventName, params) {
+    if (typeof window.gtag !== "function") {
+      return;
+    }
+
+    window.gtag("event", eventName, params || {});
+  }
+
+  function trackSearchAnalytics(query, resultCount) {
+    var trimmedQuery = $.trim(query || "");
+    if (!trimmedQuery) {
+      return;
+    }
+
+    var searchKey = SEARCH_ANALYTICS_EVENTS.search + "::" + trimmedQuery;
+    if (!trackedSearchEvents[searchKey]) {
+      trackedSearchEvents[searchKey] = true;
+      trackAnalyticsEvent(SEARCH_ANALYTICS_EVENTS.search, {
+        search_term: trimmedQuery,
+        results_count: resultCount,
+        search_source: "onsite",
+      });
+    }
+
+    if (resultCount !== 0) {
+      return;
+    }
+
+    var zeroKey = SEARCH_ANALYTICS_EVENTS.zeroResults + "::" + trimmedQuery;
+    if (trackedSearchEvents[zeroKey]) {
+      return;
+    }
+
+    trackedSearchEvents[zeroKey] = true;
+    trackAnalyticsEvent(SEARCH_ANALYTICS_EVENTS.zeroResults, {
+      search_term: trimmedQuery,
+      results_count: 0,
+      search_source: "onsite",
+    });
   }
 
   /**
@@ -2218,6 +2265,7 @@
         originalResults = (data.results || []).filter(function (r) {
           return (r.raw || {}).resourcedoctype !== EXCLUDED_DOCTYPE;
         });
+        trackSearchAnalytics(query, originalResults.length);
 
         // In dev or when query is empty the single fetch IS the full corpus
         if (masterResults.length === 0) {

@@ -1022,6 +1022,81 @@ Matrix injects the authenticated user's details into `localStorage` on page load
 
 Google Analytics 4 via Google Tag Manager. Tag ID: `G-WY2GK59DRN`. GTM is loaded by the Matrix paint layout — it is not in this bundle.
 
+### Search analytics instrumentation (this bundle)
+
+Search analytics events are emitted by `src/js/coveo-search.js` from the URL-driven `runSearch(query)` flow.
+
+- `policy_search`
+- `policy_search_zero_results`
+
+Event parameters:
+
+- `search_term`
+- `results_count`
+- `search_source` (currently `onsite`)
+
+Behavior and scope:
+
+- Query-scoped: events fire only when submitted `searchterm` is non-empty.
+- Zero-results event fires only for the initial submitted query outcome.
+- Filter-driven empty states do not emit `policy_search_zero_results`.
+- Runtime is fail-safe: if `window.gtag` is unavailable, event calls are skipped.
+
+### GA4 configuration runbook (reusable)
+
+1. GA4 Admin -> Data streams -> select the web stream used by this search page.
+2. Keep Enhanced Measurement enabled.
+3. In Site search settings, add `searchterm` as an additional query parameter.
+4. Confirm built-in GA4 site search collection (`view_search_results`) is present.
+5. GA4 Admin -> Custom definitions -> create event-scoped dimensions:
+  - `search_term`
+  - `results_count`
+  - `search_source`
+6. Validate in DebugView with at least two manual tests:
+  - A query returning results (expect `policy_search` and `view_search_results`)
+  - A query returning zero results (expect `policy_search_zero_results`)
+7. Allow processing time before using these fields in standard GA4 reports/Looker Studio.
+
+### Looker Studio reusable dashboard pattern
+
+Use the GA4 connector and build one template report that can be duplicated per property.
+
+Required report-level controls:
+
+- Date range
+- Event name filter
+- Search source filter
+
+Recommended calculated fields:
+
+- `zero_result_flag`:
+  `CASE WHEN Event name = "policy_search_zero_results" THEN 1 ELSE 0 END`
+- `search_event_flag`:
+  `CASE WHEN Event name = "policy_search" OR Event name = "view_search_results" THEN 1 ELSE 0 END`
+- `zero_result_rate`:
+  `SUM(zero_result_flag) / NULLIF(SUM(search_event_flag), 0)`
+
+Recommended chart set (template baseline):
+
+1. Scorecards:
+  - Total searches
+  - Zero-result searches
+  - Zero-result rate
+2. Time series:
+  - Searches and zero-result searches by date
+3. Term performance table:
+  - Dimension: Search term
+  - Metrics: Event count, zero-result searches, zero-result rate
+4. Zero-result terms table:
+  - Filter Event name = `policy_search_zero_results`
+
+### Reusability checklist for new properties
+
+1. Reuse the same event and parameter names in implementation.
+2. Recreate the same custom definitions in GA4.
+3. Duplicate the Looker Studio template report and swap the GA4 data source.
+4. Run DebugView smoke tests before publishing dashboard links.
+
 ---
 
 ## Squiz Matrix Asset IDs
