@@ -109,7 +109,10 @@ Sorting is client-side and does not trigger a new Coveo request.
 
 - Desktop uses expanded `Sort by` radio buttons above the `Filters` heading in the sidebar.
 - Mobile uses matching `Sort by` radio buttons inside the filter drawer.
-- Desktop radios use `name="doc-search-sort"`; drawer radios use `name="doc-search-drawer-sort"` so drawer changes are staged until `Apply filters` is clicked.
+- Desktop radios use `name="doc-search-sort"`; drawer radios use `name="doc-search-drawer-sort"` so drawer changes are staged until the dynamic `Show N results` button is clicked.
+- The mobile drawer footer keeps the primary `Show N results` button and the secondary `Clear all` link visible while the filter controls scroll.
+- Runtime button copy is count-aware: `Show 1 result` for one match, otherwise `Show N results`.
+- Drawer `Clear all` resets staged controls only; results do not update until the user clicks `Show N results`.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
 - The results summary (`Showing X-Y of N results`) and table/card view toggle share one results header row: summary left, view toggle right. Keep the view toggle right-aligned where the old inline sort dropdown used to be.
 

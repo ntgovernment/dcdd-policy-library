@@ -1386,8 +1386,8 @@
 
   /**
    * Computes the number of items that would match the current drawer filter
-   * selections (without mutating module state) and updates the live count
-   * element inside the drawer footer.
+    * selections (without mutating module state) and updates the drawer's
+    * primary action label.
    */
   function updateDrawerItemCount() {
     var drawerTypeFilters = new Set();
@@ -1428,8 +1428,8 @@
       return true;
     }).length;
 
-    $("#doc-search-drawer-item-count").text(
-      count === 1 ? "1 item found" : count + " items found",
+    $("#doc-search-drawer-apply").text(
+      count === 1 ? "Show 1 result" : "Show " + count + " results",
     );
   }
 
@@ -2371,7 +2371,7 @@
     }
   });
 
-  // Apply filters from drawer
+  // Apply filters from drawer via the "Show N results" button
   $(document).on("click", "#doc-search-drawer-apply", function () {
     // Read sort
     var drawerSort =
@@ -2418,7 +2418,7 @@
     updateDrawerItemCount();
   });
 
-  // Update drawer item count when owner select changes inside drawer
+  // Update drawer action count when owner select changes inside drawer
   $(document).on(
     "change",
     'select[name="doc-search-drawer-owner"]',
@@ -2438,7 +2438,7 @@
   // ── Event: checkbox filter change ────────────────────────────────────────────
   $(document).on("change", "[data-facet]", function () {
     var $cb = $(this);
-    // Inside the drawer, changes are applied only via the "Apply filters" button
+    // Inside the drawer, changes are applied only via the "Show N results" button
     if ($cb.closest("#doc-search-drawer").length) {
       updateDrawerItemCount();
       return;
