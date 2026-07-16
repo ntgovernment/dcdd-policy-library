@@ -5,8 +5,8 @@
  * into user metadata field #969752 while retaining docSearchView local cache.
  *
  * Canonical metadata values:
- * - grid (default)
- * - table
+ * - table (default)
+ * - grid
  *
  * Local storage compatibility values (existing app behavior):
  * - card  (maps to grid)
@@ -116,7 +116,7 @@
     if (pref === "table" && isMobileViewport()) {
       // Keep UI in card mode on mobile while preserving table preference for desktop.
       els.col.setAttribute("data-view", "card");
-      els.toggleBtn.setAttribute("aria-pressed", "false");
+      els.toggleBtn.setAttribute("aria-pressed", "true");
       return;
     }
 
@@ -124,7 +124,7 @@
     if (currentView === desiredView) {
       els.toggleBtn.setAttribute(
         "aria-pressed",
-        desiredView === "table" ? "true" : "false",
+        desiredView === "card" ? "true" : "false",
       );
       return;
     }
@@ -140,7 +140,7 @@
     els.col.setAttribute("data-view", desiredView);
     els.toggleBtn.setAttribute(
       "aria-pressed",
-      desiredView === "table" ? "true" : "false",
+      desiredView === "card" ? "true" : "false",
     );
   }
 
@@ -321,8 +321,8 @@
       if (target.closest("#" + DONT_SAVE_BTN_ID)) {
         window.setTimeout(function () {
           // Align to default behavior when user opts out of saving.
-          setLocalView("grid");
-          persistPreference("grid", "dont-save-click");
+          setLocalView("table");
+          persistPreference("table", "dont-save-click");
         }, 0);
       }
     });
@@ -359,14 +359,15 @@
 
       wireUiListeners();
 
-      var localPref = normalizePreference(localStorage.getItem(LOCAL_VIEW_KEY));
+      var localValue = localStorage.getItem(LOCAL_VIEW_KEY);
+      var localPref = localValue ? normalizePreference(localValue) : null;
 
       readPreferenceFromMetadata().then(function (remotePref) {
-        var effectivePref = remotePref || localPref || "grid";
+        var effectivePref = remotePref || localPref || "table";
 
         syncDomToPreference(effectivePref, { useToggleClick: true });
 
-        // Seed metadata if missing so default/grid is stored server-side.
+        // Seed metadata if missing so the table default is stored server-side.
         if (!remotePref) {
           persistPreference(effectivePref, "seed-default");
         }

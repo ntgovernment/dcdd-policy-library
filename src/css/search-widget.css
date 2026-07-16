@@ -187,7 +187,7 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
-/* View toggle + Sort row */
+/* Results controls */
 .doc-search-results-controls {
   display: flex;
   align-items: center;
@@ -196,7 +196,7 @@ tr.doc-search-row--moving {
   gap: 16px;
 }
 
-/* ── View toggle pill ─────────────────────────────────────────────────────── */
+/* ── Description toggle pill ──────────────────────────────────────────────── */
 .doc-search-view-toggle {
   display: flex;
   align-items: center;
@@ -231,9 +231,6 @@ tr.doc-search-row--moving {
   transition: transform 0.2s;
 }
 
-.doc-search-results-col[data-view="table"]
-  ~ .doc-search-results-header
-  .doc-search-view-toggle__pill,
 .doc-search-view-toggle[aria-pressed="true"] .doc-search-view-toggle__pill {
   background: var(--clr-icon-default);
 }
@@ -294,7 +291,7 @@ tr.doc-search-row--moving {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   CARD VIEW  (default — data-view="card" on .doc-search-results-col)
+  CARD VIEW  (descriptions shown via data-view="card")
    ══════════════════════════════════════════════════════════════════════════ */
 .doc-search-results-list {
   list-style: none;
@@ -460,7 +457,7 @@ tr.doc-search-row--moving {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   TABLE VIEW  (toggled via [data-view="table"] on .doc-search-results-col)
+  TABLE VIEW  (desktop default via [data-view="table"])
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* Hide card-only elements */
@@ -480,6 +477,10 @@ tr.doc-search-row--moving {
 
 .doc-search-results-col[data-view="table"] .doc-search-table-wrap {
   display: block;
+}
+
+.doc-search-table-wrap.d-none {
+  display: none !important;
 }
 
 /* Table */
@@ -1227,7 +1228,7 @@ tr.doc-search-row--moving {
     flex-direction: column;
   }
 
-  /* Hide table view toggle on mobile */
+  /* Mobile remains card-only, so hide the description toggle */
   .doc-search-view-toggle {
     display: none;
   }

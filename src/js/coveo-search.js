@@ -92,7 +92,7 @@
  *   #doc-search-results-summary   receives "Showing X–Y of Z results" text
  *   #doc-search-pagination        receives prev/page-number/next buttons
  *   input[name="doc-search-sort"] desktop sort radios; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
- *   #doc-search-view-toggle       button; aria-pressed="true" = table view active
+ *   #doc-search-view-toggle       button; aria-pressed="true" = card descriptions shown
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
  *   #doc-search-category-filters  <ul> receives Category facet checkboxes
  *   #doc-search-user-message      receives error / no-results HTML (see buildNoResultsHtml())
@@ -890,7 +890,9 @@
    */
   function parseApprovedDate(dateStr) {
     if (!dateStr) return null;
-    var m = String(dateStr).trim().match(/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/);
+    var m = String(dateStr)
+      .trim()
+      .match(/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/);
     if (!m) return null;
 
     var day = parseInt(m[1], 10);
@@ -1386,8 +1388,8 @@
 
   /**
    * Computes the number of items that would match the current drawer filter
-    * selections (without mutating module state) and updates the drawer's
-    * primary action label.
+   * selections (without mutating module state) and updates the drawer's
+   * primary action label.
    */
   function updateDrawerItemCount() {
     var drawerTypeFilters = new Set();
@@ -1839,13 +1841,14 @@
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-   * (summary + controls), sidebar, and pagination.
+    * (summary + controls), table wrapper, sidebar, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
     var noResults = resultCount === 0;
     $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
     $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
     $("#doc-search-sidebar").toggleClass("d-none", noResults);
     $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
@@ -1946,13 +1949,14 @@
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-   * (summary + controls), sidebar, and pagination.
+    * (summary + controls), table wrapper, sidebar, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
     var noResults = resultCount === 0;
     $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
     $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
     $("#doc-search-sidebar").toggleClass("d-none", noResults);
     $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
@@ -2025,13 +2029,14 @@
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-   * (summary + controls), sidebar, drawer, and pagination.
+    * (summary + controls), table wrapper, sidebar, drawer, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
     var noResults = resultCount === 0;
     $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
     $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
     $("#doc-search-sidebar").toggleClass("d-none", noResults);
     $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
@@ -2512,16 +2517,11 @@
   $(document).on("click", "#doc-search-view-toggle", function () {
     var $btn = $(this);
     var $col = $("#doc-search-results-col");
-    var tableNow = $col.attr("data-view") === "table";
-    var newView = tableNow ? "card" : "table";
+    var toggleOn = $btn.attr("aria-pressed") !== "true";
+    var newView = toggleOn ? "card" : "table";
 
-    if (tableNow) {
-      $col.attr("data-view", "card");
-      $btn.attr("aria-pressed", "false");
-    } else {
-      $col.attr("data-view", "table");
-      $btn.attr("aria-pressed", "true");
-    }
+    $col.attr("data-view", newView);
+    $btn.attr("aria-pressed", toggleOn ? "true" : "false");
 
     // Auto-save the view preference instantly
     localStorage.setItem("docSearchView", newView);
@@ -2543,7 +2543,7 @@
 
   // ── Reset table view on mobile ────────────────────────────────────────────────
   // If the viewport drops to mobile width while table view is active, switch back
-  // to card view so the hidden toggle doesn't leave a broken table-only state.
+  // to card view so the hidden description toggle cannot leave a table-only state.
   (function () {
     var mq = window.matchMedia("(max-width: 900px)");
     function resetTableViewOnMobile(e) {
@@ -2552,7 +2552,7 @@
         $("#doc-search-results-col").attr("data-view") === "table"
       ) {
         $("#doc-search-results-col").attr("data-view", "card");
-        $("#doc-search-view-toggle").attr("aria-pressed", "false");
+        $("#doc-search-view-toggle").attr("aria-pressed", "true");
         renderPage(currentPage);
       }
     }
@@ -2572,22 +2572,21 @@
     }
     syncSortControls();
 
-    // Restore view preference from localStorage
+    // Restore a saved desktop preference; otherwise the markup defaults to table.
     var savedView = localStorage.getItem("docSearchView");
-    if (savedView === "table" || savedView === "card") {
-      // Don't restore table view on mobile viewports
-      if (
-        savedView === "table" &&
-        window.matchMedia("(max-width: 900px)").matches
-      ) {
-        savedView = "card";
-      }
-      $("#doc-search-results-col").attr("data-view", savedView);
-      $("#doc-search-view-toggle").attr(
-        "aria-pressed",
-        savedView === "table" ? "true" : "false",
-      );
+    var initialView =
+      savedView === "table" || savedView === "card" ? savedView : "table";
+
+    // Mobile remains card-only without replacing the saved desktop preference.
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      initialView = "card";
     }
+
+    $("#doc-search-results-col").attr("data-view", initialView);
+    $("#doc-search-view-toggle").attr(
+      "aria-pressed",
+      initialView === "card" ? "true" : "false",
+    );
 
     // Pre-fill search input if present
     $("#search").val(initialQuery);

@@ -305,14 +305,14 @@ import "./js/coveo-search.js"; // search logic  (compiled → dist/search-page.j
 `src/js/view-preference-metadata-patch.js` is a standalone IIFE patch that syncs the search view toggle preference with Squiz user metadata.
 
 - Metadata field ID: `969752` (`user.view-preference`)
-- Persisted values: `grid` (default) or `table`
+- Persisted values: `grid` or `table` (default when no preference exists)
 - Compatibility key: keeps `localStorage.docSearchView` in `card`/`table` format for existing `coveo-search.js` behavior
 
 Runtime behavior:
 
-1. On load, it reads metadata via `js_api.getMetadata` and applies the resolved preference.
-2. On view toggle/save actions, it writes the new preference via `js_api.setMetadata`.
-3. On mobile (`max-width: 900px`), UI stays in card mode while the saved preference is preserved.
+1. On load, it reads metadata via `js_api.getMetadata` and applies the resolved preference; existing saved choices remain authoritative, while a missing local and remote preference defaults to table.
+2. The **Show description** toggle is on for `grid`/card view and off for table view. Toggle/save actions write the resolved preference via `js_api.setMetadata`.
+3. On mobile (`max-width: 900px`), UI stays in card mode while the saved desktop preference is preserved.
 
 Integration:
 
@@ -449,21 +449,21 @@ All CSS custom properties (design tokens) are declared in **[`src/css/tokens.css
 
 ### Colour tokens
 
-| Token                    | Value     | Usage                                                                                                    |
-| ------------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
-| `--clr-primary`          | `#343741` | NTG body text                                                                                            |
-| `--clr-text-default`     | `#102040` | Widget body text, links (`--clr-link-default` is an alias)                                               |
-| `--clr-link-default`     | `#102040` | All link colours                                                                                         |
+| Token                    | Value     | Usage                                                                                                     |
+| ------------------------ | --------- | --------------------------------------------------------------------------------------------------------- |
+| `--clr-primary`          | `#343741` | NTG body text                                                                                             |
+| `--clr-text-default`     | `#102040` | Widget body text, links (`--clr-link-default` is an alias)                                                |
+| `--clr-link-default`     | `#102040` | All link colours                                                                                          |
 | `--clr-tertiary`         | `#167abe` | Search result title links, table title links, collection links, source row links, "Show N results" button |
-| `--clr-text-alt`         | `#384560` | Secondary text, input placeholder                                                                        |
-| `--clr-text-emphasis`    | `#208820` | Emphasis / positive text (green)                                                                         |
-| `--clr-border-subtle`    | `#d0e0e0` | Borders, outlines                                                                                        |
-| `--clr-bg-default`       | `#ffffff` | Input background                                                                                         |
-| `--clr-bg-shade`         | `#f5f5f7` | Card/item background (collection page)                                                                   |
-| `--clr-bg-shade-alt`     | `#ecf0f0` | Results area background (search widget)                                                                  |
-| `--clr-icon-subtle`      | `#878f9f` | Toggle pill (off state)                                                                                  |
-| `--clr-icon-default`     | `#208820` | Prev/Next pagination icon hover                                                                          |
-| `--clr-surface-selected` | `#107810` | Active pagination page / toggle (on)                                                                     |
+| `--clr-text-alt`         | `#384560` | Secondary text, input placeholder                                                                         |
+| `--clr-text-emphasis`    | `#208820` | Emphasis / positive text (green)                                                                          |
+| `--clr-border-subtle`    | `#d0e0e0` | Borders, outlines                                                                                         |
+| `--clr-bg-default`       | `#ffffff` | Input background                                                                                          |
+| `--clr-bg-shade`         | `#f5f5f7` | Card/item background (collection page)                                                                    |
+| `--clr-bg-shade-alt`     | `#ecf0f0` | Results area background (search widget)                                                                   |
+| `--clr-icon-subtle`      | `#878f9f` | Toggle pill (off state)                                                                                   |
+| `--clr-icon-default`     | `#208820` | Prev/Next pagination icon hover                                                                           |
+| `--clr-surface-selected` | `#107810` | Active pagination page / toggle (on)                                                                      |
 
 ### Typography tokens
 
@@ -748,7 +748,7 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 | `search-result-collection`      | `raw.collectionname` — human-readable collection name set as the link text                                                                                                                                                                  |
 | `search-result-collection-link` | `raw.collectionurl` — set as `href`; `raw.collectionname` is the link text. Row is hidden (not this element) when either field is absent or `"none"`.                                                                                       |
 | `search-result-doctype`         | `raw.resourcedoctype` (rendered as a tag `<span>` — hidden via `hidden` attribute when absent/empty)                                                                                                                                        |
-| `search-result-last-updated`    | Date resolved from `raw.approveddate` (`DD MM YYYY`) with fallback to `raw.resourceupdated` (`YYYY-MM-DD HH:mm:ss`), then formatted as `D MMMM YYYY` (e.g. `1 May 2026`)                                                                          |
+| `search-result-last-updated`    | Date resolved from `raw.approveddate` (`DD MM YYYY`) with fallback to `raw.resourceupdated` (`YYYY-MM-DD HH:mm:ss`), then formatted as `D MMMM YYYY` (e.g. `1 May 2026`)                                                                    |
 | `search-result-page-row`        | Source row container `<div>` — hidden by default; unhidden when `raw.assetassetid` is present, then re-hidden if upstream link resolution finds no pages                                                                                    |
 | `search-result-page-label`      | `<span>` containing `Source:` (singular) or `Sources:` (plural) — JS changes text to `Sources:` when more than one link is resolved                                                                                                         |
 | `search-result-page-ids`        | `<span>` populated with `<a>` links in the Source row. If `raw.sourcepage` + `raw.sourceurl` exist, this renders immediately first; async resolved parent-page links are then merged in (comma-separated HTML from `renderPageLinksHtml()`) |
@@ -816,14 +816,15 @@ The results area. Deployed as a separate Matrix nested container. Contains:
 Important: `src/search-results.html` includes the literal Squiz keyword `%asset_contents%` as a CMS-managed placeholder for custom messaging content. Keep this token unchanged when editing templates or refactoring markup.
 
 - `.doc-search-outer` / `.doc-search-layout` — outer wrapper and two-column flex container
-- `#doc-search-results-col` — results column; `data-view="card"` or `data-view="table"` switches the active view
+- `#doc-search-results-col` — results column; desktop defaults to `data-view="table"`, while `data-view="card"` shows result descriptions
 - `#initialLoadingSpinner` — CSS ring spinner; visible while fetch is in progress
 - `#doc-search-user-message` — error / no-results message area; when a query yields zero results, `buildNoResultsHtml(query)` injects a structured block with a heading ("No results"), the bolded search term, and a suggestion to refine the search
-- `#doc-search-results-summary` — "Showing X–Y of N results" text; aligned left in the same header row as the table view toggle
+- `#doc-search-results-summary` — "Showing X–Y of N results" text; aligned left in the same header row as the description toggle
 - `#doc-search-mobile-filter-btn` — "Filters" pill button (hidden on desktop, visible ≤ 900 px); slides in the filter drawer
-- `#doc-search-view-toggle` — card/table toggle pill button (`aria-pressed="true"` = table active)
+- `#doc-search-view-toggle` — **Show description** pill button (`aria-pressed="true"` = card view with descriptions active)
 - `#doc-search-results-list` — `<ul>` where card result `<li>` items are appended
 - `#doc-search-table` / `#doc-search-table-body` — `<table>` rendered in table view (hidden on mobile)
+- `.doc-search-table-wrap` — table overflow wrapper; hidden in card view and also hidden when filtered results are `0` so table headers are not shown in empty states
 - `#doc-search-pagination` — pagination `<nav>` (prev/next buttons + numbered pages with ellipsis)
 - `#doc-search-sidebar` — filter sidebar containing the desktop Sort by radio group above the Filters heading, followed by Type, Category, and Content owner filter groups; hidden on mobile
 - `input[name="doc-search-sort"]` — desktop Sort by radio inputs (values: `relevancy`, `date descending`, `alpha ascending`, `alpha descending`)
@@ -843,34 +844,34 @@ Important: `src/search-results.html` includes the literal Squiz keyword `%asset_
 
 ## Key Element IDs
 
-| ID                                    | Purpose                                                                                                                                                           |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#policy-search-form`                 | Search form — submit triggers `runSearch()`                                                                                                                       |
-| `#search`                             | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                   |
-| `#doc-search-results-col`             | Results column; `data-view` attr controls card/table                                                                                                              |
-| `#initialLoadingSpinner`              | Shown during fetch; hidden on response                                                                                                                            |
-| `#doc-search-user-message`            | Error / no-results message; populated via `.html()` so it can contain the structured `buildNoResultsHtml()` block                                                 |
-| `#doc-search-results-summary`         | "Showing X–Y of N results" line                                                                                                                                   |
-| `input[name="doc-search-sort"]`        | Desktop Sort by radio inputs in the sidebar; change event triggers `applySort()` + `applyFilters()` (no API call)                                                  |
-| `#doc-search-mobile-filter-btn`       | Mobile-only "Filters" pill button (hidden on desktop); opens the filter drawer                                                                                    |
-| `#doc-search-view-toggle`             | Card/table toggle pill button                                                                                                                                     |
-| `#doc-search-results-list`            | Card results `<ul>`                                                                                                                                               |
-| `#doc-search-table-body`              | Table results `<tbody>`                                                                                                                                           |
-| `#doc-search-pagination`              | Pagination `<nav>`                                                                                                                                                |
-| `#doc-search-sidebar`                 | Filter sidebar `<aside>` (hidden on mobile)                                                                                                                       |
-| `#doc-search-sidebar-clear`           | "Clear all" button in desktop sidebar                                                                                                                             |
-| `#doc-search-type-filters`            | Type facet checkbox list (sidebar)                                                                                                                                |
-| `#doc-search-category-filters`        | Category facet checkbox list (sidebar)                                                                                                                            |
-| `#doc-search-owner`                   | Content owner dropdown select (sidebar); change event fires `applyFilters()`                                                                                      |
-| `#doc-search-drawer`                  | Slide-in filter drawer (`role="dialog"`, `aria-modal="true"`); shown/hidden via `aria-hidden`                                                                     |
-| `#doc-search-drawer-overlay`          | Semi-transparent backdrop behind the drawer; click closes the drawer                                                                                              |
-| `#doc-search-drawer-close`            | × close button in the drawer header                                                                                                                               |
-| `input[name="doc-search-drawer-sort"]` | Drawer copy of the Sort by radio inputs; staged until `#doc-search-drawer-apply` is clicked                                                                        |
-| `#doc-search-drawer-type-filters`     | Drawer copy of the Type facet checkbox list                                                                                                                       |
-| `#doc-search-drawer-category-filters` | Drawer copy of the Category facet checkbox list                                                                                                                   |
-| `#doc-search-drawer-owner`            | Drawer copy of the Content owner dropdown select                                                                                                                  |
-| `#doc-search-drawer-clear`            | "Clear all" secondary link in drawer footer — resets staged sort to Relevance and clears staged owner/checkbox selections                                         |
-| `#doc-search-drawer-apply`            | Dynamic count-aware button in drawer footer — renders "Show 1 result" or "Show N results", then commits staged drawer sort + filter selections back to sidebar state |
+| ID                                     | Purpose                                                                                                                                                              |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#policy-search-form`                  | Search form — submit triggers `runSearch()`                                                                                                                          |
+| `#search`                              | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                      |
+| `#doc-search-results-col`              | Results column; `data-view` attr controls card/table                                                                                                                 |
+| `#initialLoadingSpinner`               | Shown during fetch; hidden on response                                                                                                                               |
+| `#doc-search-user-message`             | Error / no-results message; populated via `.html()` so it can contain the structured `buildNoResultsHtml()` block                                                    |
+| `#doc-search-results-summary`          | "Showing X–Y of N results" line                                                                                                                                      |
+| `input[name="doc-search-sort"]`        | Desktop Sort by radio inputs in the sidebar; change event triggers `applySort()` + `applyFilters()` (no API call)                                                    |
+| `#doc-search-mobile-filter-btn`        | Mobile-only "Filters" pill button (hidden on desktop); opens the filter drawer                                                                                       |
+| `#doc-search-view-toggle`              | **Show description** pill; pressed shows card results with descriptions, unpressed shows table results                                                              |
+| `#doc-search-results-list`             | Card results `<ul>`                                                                                                                                                  |
+| `#doc-search-table-body`               | Table results `<tbody>`                                                                                                                                              |
+| `#doc-search-pagination`               | Pagination `<nav>`                                                                                                                                                   |
+| `#doc-search-sidebar`                  | Filter sidebar `<aside>` (hidden on mobile)                                                                                                                          |
+| `#doc-search-sidebar-clear`            | "Clear all" button in desktop sidebar                                                                                                                                |
+| `#doc-search-type-filters`             | Type facet checkbox list (sidebar)                                                                                                                                   |
+| `#doc-search-category-filters`         | Category facet checkbox list (sidebar)                                                                                                                               |
+| `#doc-search-owner`                    | Content owner dropdown select (sidebar); change event fires `applyFilters()`                                                                                         |
+| `#doc-search-drawer`                   | Slide-in filter drawer (`role="dialog"`, `aria-modal="true"`); shown/hidden via `aria-hidden`                                                                        |
+| `#doc-search-drawer-overlay`           | Semi-transparent backdrop behind the drawer; click closes the drawer                                                                                                 |
+| `#doc-search-drawer-close`             | × close button in the drawer header                                                                                                                                  |
+| `input[name="doc-search-drawer-sort"]` | Drawer copy of the Sort by radio inputs; staged until `#doc-search-drawer-apply` is clicked                                                                          |
+| `#doc-search-drawer-type-filters`      | Drawer copy of the Type facet checkbox list                                                                                                                          |
+| `#doc-search-drawer-category-filters`  | Drawer copy of the Category facet checkbox list                                                                                                                      |
+| `#doc-search-drawer-owner`             | Drawer copy of the Content owner dropdown select                                                                                                                     |
+| `#doc-search-drawer-clear`             | "Clear all" secondary link in drawer footer — resets staged sort to Relevance and clears staged owner/checkbox selections                                            |
+| `#doc-search-drawer-apply`             | Dynamic count-aware button in drawer footer — renders "Show 1 result" or "Show N results", then commits staged drawer sort + filter selections back to sidebar state |
 
 ---
 
@@ -916,12 +917,12 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-layout`                               | Two-column flex (results col + sidebar)                                                                                                                                                                                                                                                            |
 | `.doc-search-results-col`                          | Results column; `[data-view="table"]` activates table mode                                                                                                                                                                                                                                         |
 | `.ntgc-callout` (inside `.doc-search-results-col`) | Governance contact callout — always visible above the results summary; background `#F5F5F7`, border-left `#102040`, `padding: 16px`, `line-height: 1.3`, `max-width: none`; overrides applied via `.doc-search-results-col .ntgc-callout` in `search-widget.css` with `!important`                 |
-| `.doc-search-results-header`                       | Bar above results — summary text + controls. Uses a single flex row with `justify-content: space-between` so the summary is left-aligned and controls are right-aligned.                                                                                                                            |
+| `.doc-search-results-header`                       | Bar above results — summary text + controls. Uses a single flex row with `justify-content: space-between` so the summary is left-aligned and controls are right-aligned.                                                                                                                           |
 | `.doc-search-results-summary`                      | "Showing X–Y of N results" `<p>` in the shared results header row; margin is reset so inherited paragraph styles do not disrupt alignment.                                                                                                                                                         |
-| `.doc-search-results-controls`                     | Flex row — contains the right-aligned view toggle button and does not shrink into the summary text.                                                                                                                                                                                                 |
-| `.doc-search-view-toggle`                          | Card/table toggle pill `<button>`                                                                                                                                                                                                                                                                  |
+| `.doc-search-results-controls`                     | Flex row — contains the right-aligned description toggle button and does not shrink into the summary text.                                                                                                                                                                                         |
+| `.doc-search-view-toggle`                          | **Show description** toggle pill `<button>`                                                                                                                                                                                                                                                        |
 | `.doc-search-view-toggle__pill`                    | The sliding oval indicator                                                                                                                                                                                                                                                                         |
-| `.doc-search-view-toggle__label`                   | "Table view" / "Card view" text                                                                                                                                                                                                                                                                    |
+| `.doc-search-view-toggle__label`                   | "Show description" text                                                                                                                                                                                                                                                                           |
 | `.doc-search-spinner`                              | Loading spinner wrapper                                                                                                                                                                                                                                                                            |
 | `.doc-search-spinner__ring`                        | CSS `@keyframes` ring animation                                                                                                                                                                                                                                                                    |
 | `.doc-search-user-message`                         | Error / empty-state message; `padding: 0` (no vertical padding). Contains `.doc-search-no-results` block when a query yields zero results.                                                                                                                                                         |
@@ -945,7 +946,7 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-result__meta`                         | Flex row — doctype tag + last-updated date                                                                                                                                                                                                                                                         |
 | `.doc-search-result__tag`                          | Document type tag `<span>` (e.g. "Policy") — `display: inline-flex`, `outline: 1px solid var(--clr-border-subtle)` (not `border`), **no `border-radius`**, 12px/700 uppercase Roboto                                                                                                               |
 | `.doc-search-result__updated`                      | Last-updated date wrapper `<div>` — contains literal text `Last updated:` and an inner `<span [data-ref="search-result-last-updated"]>` with the formatted date (card view only; table view renders plain text directly in `<td>`)                                                                 |
-| `.doc-search-table-wrap`                           | Overflow wrapper for table (hidden in card view)                                                                                                                                                                                                                                                   |
+| `.doc-search-table-wrap`                           | Overflow wrapper for table (hidden in card view); also hidden when filtered results are `0` so table headers are not shown in empty states                                                                                                                                                        |
 | `.doc-search-table`                                | Results `<table>` (visible only when `data-view="table"`)                                                                                                                                                                                                                                          |
 | `.doc-search-table__col-title`                     | Title column — 50% width                                                                                                                                                                                                                                                                           |
 | `.doc-search-table__col-updated`                   | Last Updated column                                                                                                                                                                                                                                                                                |
@@ -982,10 +983,10 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-drawer__header`                       | Sticky header row — "Filters" title + × close button                                                                                                                                                                                                                                               |
 | `.doc-search-drawer__title`                        | "Filters" heading `<span>`                                                                                                                                                                                                                                                                         |
 | `.doc-search-drawer__close`                        | × close `<button>`; `align-self: stretch` fills the full header height; inset focus ring (`outline-offset: -4px`)                                                                                                                                                                                  |
-| `.doc-search-drawer__body`                         | Scrollable region containing the sort group, Type facet, Category facet, and Content owner select                                                                                                                                                                                                 |
-| `.doc-search-drawer__footer`                       | Fixed vertical action stack containing the primary "Show N results" button and secondary "Clear all" link                                                                                                                                                                                       |
-| `.doc-search-drawer__apply`                        | Dynamic "Show N results" `<button>` — displays the staged match count, syncs drawer selections to sidebar, and fires `applyFilters()`                                                                                                                                                            |
-| `.doc-search-drawer__clear`                        | "Clear all" secondary link below the primary footer button; resets staged sort to Relevance and clears staged owner/facets without applying                                                                                                                                                     |
+| `.doc-search-drawer__body`                         | Scrollable region containing the sort group, Type facet, Category facet, and Content owner select                                                                                                                                                                                                  |
+| `.doc-search-drawer__footer`                       | Fixed vertical action stack containing the primary "Show N results" button and secondary "Clear all" link                                                                                                                                                                                          |
+| `.doc-search-drawer__apply`                        | Dynamic "Show N results" `<button>` — displays the staged match count, syncs drawer selections to sidebar, and fires `applyFilters()`                                                                                                                                                              |
+| `.doc-search-drawer__clear`                        | "Clear all" secondary link below the primary footer button; resets staged sort to Relevance and clears staged owner/facets without applying                                                                                                                                                        |
 | `.doc-search-facet-list`                           | Checkbox list `<ul>`                                                                                                                                                                                                                                                                               |
 | `.doc-search-facet-item`                           | Checkbox label wrapper `<label>`; `display: flex; align-items: center; justify-content: flex-start; gap: 8px` — count sits immediately after label text, not pushed to row end                                                                                                                     |
 | `.doc-search-facet-item--disabled`                 | Applied to checkbox label wrapper `<label>` when count is `0`; reduces opacity to `0.5` and sets cursor to `not-allowed` to visually mute/disable the item.                                                                                                                                        |
@@ -1000,7 +1001,7 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-owner-select__input`                  | Select input for Content owner filter                                                                                                                                                                                                                                                              |
 | `.doc-search-owner-select__chevron`                | Chevron icon inside the Content owner dropdown select                                                                                                                                                                                                                                              |
 
-**Responsive breakpoints:** At ≤ 900 px, `.doc-search-layout` switches from row to column, the filter sidebar (`#doc-search-sidebar`) is hidden, and a "Filters" pill button (`#doc-search-mobile-filter-btn`) appears in the results column. Tapping it slides in the filter drawer (`#doc-search-drawer`) from the right. The table view toggle is also hidden at this breakpoint — only card view is available on mobile.
+**Responsive breakpoints:** At ≤ 900 px, `.doc-search-layout` switches from row to column, the filter sidebar (`#doc-search-sidebar`) is hidden, and a "Filters" pill button (`#doc-search-mobile-filter-btn`) appears in the results column. Tapping it slides in the filter drawer (`#doc-search-drawer`) from the right. The **Show description** toggle is hidden at this breakpoint and card view remains active, while any saved desktop preference is preserved.
 
 ---
 
@@ -1047,12 +1048,16 @@ Behavior and scope:
 3. In Site search settings, add `searchterm` as an additional query parameter.
 4. Confirm built-in GA4 site search collection (`view_search_results`) is present.
 5. GA4 Admin -> Custom definitions -> create event-scoped dimensions:
-  - `search_term`
-  - `results_count`
-  - `search_source`
+
+- `search_term`
+- `results_count`
+- `search_source`
+
 6. Validate in DebugView with at least two manual tests:
-  - A query returning results (expect `policy_search` and `view_search_results`)
-  - A query returning zero results (expect `policy_search_zero_results`)
+
+- A query returning results (expect `policy_search` and `view_search_results`)
+- A query returning zero results (expect `policy_search_zero_results`)
+
 7. Allow processing time before using these fields in standard GA4 reports/Looker Studio.
 
 ### Looker Studio reusable dashboard pattern
@@ -1077,16 +1082,23 @@ Recommended calculated fields:
 Recommended chart set (template baseline):
 
 1. Scorecards:
-  - Total searches
-  - Zero-result searches
-  - Zero-result rate
+
+- Total searches
+- Zero-result searches
+- Zero-result rate
+
 2. Time series:
-  - Searches and zero-result searches by date
+
+- Searches and zero-result searches by date
+
 3. Term performance table:
-  - Dimension: Search term
-  - Metrics: Event count, zero-result searches, zero-result rate
+
+- Dimension: Search term
+- Metrics: Event count, zero-result searches, zero-result rate
+
 4. Zero-result terms table:
-  - Filter Event name = `policy_search_zero_results`
+
+- Filter Event name = `policy_search_zero_results`
 
 ### Reusability checklist for new properties
 

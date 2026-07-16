@@ -62,15 +62,16 @@ This repo includes a standalone script to persist the search view preference to 
 
 - File: `src/js/view-preference-metadata-patch.js`
 - Metadata field: `#969752` (`user.view-preference`)
-- Canonical values saved: `grid` (default) and `table`
+- Canonical values saved: `grid` and `table` (default when no preference exists)
 - Local compatibility key: `docSearchView` (`card`/`table`) remains in use
 
 Behavior:
 
 - Reads preference from user metadata on load (cross-device restore).
-- Applies the view state to the existing search UI toggle.
+- Applies the view state to the existing **Show description** toggle (`grid`/card is on; table is off).
 - Writes changes back to metadata when user toggles view or clicks save.
-- Uses `grid` as default when no metadata value exists.
+- Uses `table` as the desktop default when neither metadata nor a local preference exists.
+- Preserves existing saved `grid`/card and `table` choices.
 - On mobile (`<=900px`), keeps UI in card mode while preserving the saved preference.
 
 Integration options:
@@ -114,7 +115,9 @@ Sorting is client-side and does not trigger a new Coveo request.
 - Runtime button copy is count-aware: `Show 1 result` for one match, otherwise `Show N results`.
 - Drawer `Clear all` resets staged controls only; results do not update until the user clicks `Show N results`.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
-- The results summary (`Showing X-Y of N results`) and table/card view toggle share one results header row: summary left, view toggle right. Keep the view toggle right-aligned where the old inline sort dropdown used to be.
+- The results summary (`Showing X-Y of N results`) and the **Show description** toggle share one results header row: summary left, toggle right.
+- Toggle behavior on desktop: off (`aria-pressed="false"`) = table view, on (`aria-pressed="true"`) = card/grid view with descriptions.
+- In table view, when search/filter results are `0`, the table wrapper is hidden so column headers are not shown.
 
 ## Search analytics
 
@@ -142,34 +145,44 @@ GA4 setup required:
 2. Confirm Enhanced measurement is enabled and Site search is turned on.
 3. In Site search advanced settings, add `searchterm` as an additional query parameter.
 4. In Admin -> Custom definitions, create event-scoped custom dimensions:
-  - `search_term`
-  - `results_count`
-  - `search_source`
+
+- `search_term`
+- `results_count`
+- `search_source`
+
 5. In DebugView, run test searches and verify events:
-  - `view_search_results` (built-in GA4 site-search event)
-  - `policy_search` (custom event from this bundle)
-  - `policy_search_zero_results` (custom zero-results event)
+
+- `view_search_results` (built-in GA4 site-search event)
+- `policy_search` (custom event from this bundle)
+- `policy_search_zero_results` (custom zero-results event)
+
 6. Wait for GA4 processing so custom definitions are available in standard reports and Looker Studio.
 
 ### Looker Studio reusable dashboard steps
 
 1. Create a new report with the GA4 property as the data source.
 2. Add report-level controls (not page-level only):
-  - Date range control
-  - Filter control for Event name
-  - Filter control for Search source
+
+- Date range control
+- Filter control for Event name
+- Filter control for Search source
+
 3. Add calculated fields in the data source for reusable metrics:
-  - `zero_result_flag`:
-    `CASE WHEN Event name = "policy_search_zero_results" THEN 1 ELSE 0 END`
-  - `search_event_flag`:
-    `CASE WHEN Event name = "policy_search" OR Event name = "view_search_results" THEN 1 ELSE 0 END`
-  - `zero_result_rate`:
-    `SUM(zero_result_flag) / NULLIF(SUM(search_event_flag), 0)`
+
+- `zero_result_flag`:
+  `CASE WHEN Event name = "policy_search_zero_results" THEN 1 ELSE 0 END`
+- `search_event_flag`:
+  `CASE WHEN Event name = "policy_search" OR Event name = "view_search_results" THEN 1 ELSE 0 END`
+- `zero_result_rate`:
+  `SUM(zero_result_flag) / NULLIF(SUM(search_event_flag), 0)`
+
 4. Build core charts:
-  - Scorecards: total searches, zero-result searches, zero-result rate
-  - Time series: searches vs zero-result searches
-  - Table: top search terms by event count
-  - Table: zero-result terms only (filter Event name = `policy_search_zero_results`)
+
+- Scorecards: total searches, zero-result searches, zero-result rate
+- Time series: searches vs zero-result searches
+- Table: top search terms by event count
+- Table: zero-result terms only (filter Event name = `policy_search_zero_results`)
+
 5. Save this report as the template copy for other teams/properties.
 
 ### Reuse and handover checklist
