@@ -17,8 +17,9 @@ function syncPreviewTemplate() {
     .join("\n");
   let preview = readFileSync("search-section-preview.html", "utf8");
   preview = preview.replace(
-    /        <div class="doc-search-outer">[\s\S]*?<\/li>/,
-    indented,
+    /        <div class="doc-search-outer">[\s\S]*?        <script type="text\/javascript" src="\.\/dist\/search-page\.js"><\/script>/,
+    indented +
+      '\n        <script type="text/javascript" src="./dist/search-page.js"></script>',
   );
   writeFileSync("search-section-preview.html", preview, "utf8");
 }
@@ -102,7 +103,9 @@ export default defineConfig({
           if (building) return;
 
           building = true;
-          const isCollectionAsset = normalised.endsWith("collection-page.css") || normalised.endsWith("collection-page.js");
+          const isCollectionAsset =
+            normalised.endsWith("collection-page.css") ||
+            normalised.endsWith("collection-page.js");
           // tokens.css changes affect both bundles — rebuild both sequentially
           const isTokens = normalised.endsWith("tokens.css");
           server.config.logger.info(

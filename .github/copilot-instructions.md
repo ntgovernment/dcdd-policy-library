@@ -61,30 +61,38 @@ document-library/
    - Sorting is performed client-side using the retrieved results without triggering new API requests.
 
 4. **Desktop vs. Mobile Drawer Filters**:
-   - **Desktop Layout**: Filters sidebar includes a `.doc-search-sidebar__header` wrapper containing the "Filters" heading (`.doc-search-sidebar__heading`) and a "Clear all" button (`#doc-search-sidebar-clear`). Below this are checkbox facets (Type, Category) and a dropdown select facet (Content owner). All filter group titles (Type, Category, Content owner) use the `.doc-search-filter-group__title` class.
-   - **Inline Sort**: The desktop Sort selector is placed in the results header control row (right side) instead of the sidebar. It uses `.doc-search-filter-group--sort-inline` modifier and is rendered as a `<select>` element. It is hidden on mobile layouts to avoid duplicating the drawer sort.
-   - **Mobile Layout (<= 900px)**: The filters sidebar and table view toggle are hidden. A mobile filter button (`#doc-search-mobile-filter-btn`) appears with the label "Filter and sort", which opens a slide-in drawer (`#doc-search-drawer`). The drawer contains a duplicate Sort selector (as a dropdown select) and the facet checkboxes/selectors. Both the drawer title and the mobile button display the count of active filters dynamically (`#doc-search-filter-count` and `#doc-search-drawer-filter-count`). When "Apply filters" is clicked, drawer states are synced back to the hidden sidebar states, and the query is re-filtered.
+
+- **Desktop Layout**: The filters sidebar starts with an expanded "Sort by" radio group (`input[name="doc-search-sort"]`) above the `.doc-search-sidebar__header`. The header contains the "Filters" heading (`.doc-search-sidebar__heading`) and a "Clear all" button (`#doc-search-sidebar-clear`). Below this are checkbox facets (Type, Topic) and a dropdown select facet (Content owner). All filter group titles (Sort by, Type, Topic, Content owner) use the `.doc-search-filter-group__title` class.
+- **Results Header Controls**: Desktop defaults to table view. The right-aligned "Show description" toggle activates card view with descriptions. Do not reintroduce `.doc-search-filter-group--sort-inline` or a desktop sort `<select>` in the results header.
+- **Mobile Layout (<= 900px)**: The filters sidebar and "Show description" toggle are hidden, and card view remains active. A mobile filter button (`#doc-search-mobile-filter-btn`) appears with the label "Filter and sort", which opens a slide-in drawer (`#doc-search-drawer`). The drawer contains a duplicate expanded Sort by radio group (`input[name="doc-search-drawer-sort"]`) and the facet checkboxes/selectors. Drawer changes are staged until the dynamic `Show N results` button (`#doc-search-drawer-apply`) is clicked. `updateDrawerItemCount()` updates that button in real time as the user toggles checkboxes, changes the owner dropdown, or clears all filters. The fixed drawer footer also contains the secondary `Clear all` link (`#doc-search-drawer-clear`) below the primary button so both actions remain visible while filters scroll. Clicking `Show N results` syncs drawer state back to the hidden sidebar and re-filters the query.
 
 ---
 
 ## Conventions & Gotchas
 
+- **Squiz keyword placeholder (`%asset_contents%`)**:
+  - `src/search-results.html` intentionally contains the literal Squiz keyword `%asset_contents%` so CMS editors can manage custom message content.
+  - Treat `%asset_contents%` as a protected token: do not remove it, rename it, escape it, wrap it in templating syntax, or move it unless a task explicitly requests changing keyword placement.
+  - Preserve exact spelling and casing: `%asset_contents%`.
 - **Three-File HTML Synchronization**:
   - `src/search-results.html` is the source template.
   - `index.html` (root) and `search-section-preview.html` are standalone files.
-  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, ensuring all structural changes to the search results layout, filters, and card template are synced to the local dev preview automatically.
+  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, replacing the generated search UI block through the preview page's search bundle script tag. This ensures structural changes to the search results layout, filters, card template, and adjacent search UI markup such as the view preference modal are synced to the local dev preview automatically without duplication.
 - **CSS Tokens**:
   - Never declare `:root` variables in `search-widget.css` or `collection-page.css` directly. Always place them in `tokens.css`.
 - **`!important` CSS Overrides**:
   - Conflicting styles from the NTG central stylesheet (`main.css`, loaded by Squiz Matrix) require `!important` to be overridden correctly. This is an expected pattern in this repository.
 - **No Font Awesome in Bundles**:
   - Standard UI icons should be inline SVGs using `fill="currentColor"` or `stroke="currentColor"` so they adapt to theme colors and load instantly without asset dependencies.
-- **Muted/Disabled Checkmark Filters**:
+- **Muted/Disabled Checkmark Filters & Dropdowns**:
   - Checkmark filters with a count of `0` receive the `disabled` attribute on their input and the class `doc-search-facet-item--disabled` on the label wrapper. They are styled with `opacity: 0.5` and `cursor: not-allowed` (using `!important` to override defaults), and the custom checkbox background SVGs are replaced with muted gray versions.
+  - Dropdown select options (e.g., Content owners) dynamically calculate and append result counts to their text (e.g., `Owner (15)`), while their `value` attribute retains the original unmodified string for seamless filtering. Options with a count of `0` are `disabled` to prevent selection.
+- **Clear All Filters Button**:
+  - In the desktop sidebar layout, the "Clear all" button is placed inline to the right of the "Filters" heading. In the mobile layout, the clear button sits at the bottom of the scrollable drawer body.
 - **File Metadata Formatting**:
-  - The document type and size metadata (e.g., `(PDF 366.9 KB)`) is rendered independently from the main title link in a `<span class="doc-search-result__file-meta">` to ensure it is not clickable and is styled separately (14px, regular weight, gray text).
-  - The `formatFileMetaHtml(raw)` function constructs this HTML string in `coveo-search.js`, while `formatFileMeta(raw)` returns the plain text representation. This exact text string is used to append a text fragment to collection links, allowing the browser to highlight the matching document when arriving at the collection page.
+  - The document type and size metadata (e.g., `PDF (366.9 KB)`) is rendered independently from the main title link in a `<span class="doc-search-result__file-meta">` to ensure it is not clickable and is styled separately (14px, regular weight, gray text).
+  - The `formatFileMetaHtml(raw)` function constructs this HTML string in `coveo-search.js`, while `formatFileMeta(raw)` returns the plain text representation. This exact text string is used to append a text fragment to collection and source page links, allowing the browser to highlight the matching document when arriving at the target page.
+  - Generated collection page headings use the same visible format: `Title TYPE (SIZE)`, for example `DCDD recruitment guidelines DOCX (615.5 KB)`.
 - **Hiding Empty Badge/Tag Markup**:
   - Empty badges or tags (such as the document type tag `[data-ref="search-result-doctype"]` when no `resourcedoctype` is present) must be hidden using the `hidden` attribute.
   - To ensure elements with `display: inline-flex` (like `.doc-search-result__tag`) are hidden correctly overriding class rules, a specific `.doc-search-result__tag[hidden] { display: none !important; }` rule is declared in CSS.
-

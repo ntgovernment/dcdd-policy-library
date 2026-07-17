@@ -11,7 +11,7 @@
  * API response ingestion time and never appear in search results, pagination
  * counts, or facet filter lists. Change EXCLUDED_DOCTYPE to adjust this.
  *
- * The Type and Category filter sidebars always show the complete list of values
+ * The Type and Topic filter sidebars always show the complete list of values
  * from the full document corpus (masterResults), regardless of the active search
  * query. Only the count numbers beside each value change. Values with a count of
  * zero are shown as disabled so users understand they exist but yield no results.
@@ -38,17 +38,20 @@
  * The response is an array of link objects; only entries with
  * link_type === "reference" are displayed. Their major_id values are shown
  * comma-separated in the "Page:" row on each card.
- * Fetches are non-blocking — cards render immediately with "Loading…" text
- * in the Page row; the row is hidden if no reference links exist.
+ * If a result contains raw.sourcepage + raw.sourceurl, that Source link is
+ * rendered immediately before async page-link fetch completes. Resolved Matrix
+ * links are then merged with immediate links (immediate first, deduped).
+ * Fetches are non-blocking — rows may show immediate Source links or a
+ * "Loading…" placeholder depending on available fields.
  *
  * Sorting is performed client-side after the full result set is received:
  *   applySort() is called after every fetch and after every sort radio button change.
  *   "relevancy"         — preserves the original API response order (originalResults)
- *   "date descending"   — sorts allResults by raw.resourceupdated descending
+ *   "date descending"   — sorts allResults by raw.approveddate descending
  *   "alpha ascending"   — sorts allResults by raw.resourcefriendlytitle A–Z (localeCompare)
  *   "alpha descending"  — sorts allResults by raw.resourcefriendlytitle Z–A (localeCompare)
- *   raw.resourceupdated format is "YYYY-MM-DD HH:mm:ss"; lexicographic comparison
- *   produces the correct chronological order for that format.
+ *   raw.approveddate format is "DD MM YYYY"; dates are parsed before comparison
+ *   so chronological ordering remains correct.
  *
  * ── COVEO RESULT FIELDS USED ─────────────────────────────────────────────────
  * result.title                        — fallback title
@@ -58,20 +61,24 @@
  * result.raw.asseturl                 — primary document URL
  * result.raw.description              — card description (falls back to result.excerpt)
  * result.raw.resourcedoctype          — "Type" facet value and tag label
- * result.raw.category                 — "Category" facet value(s). Coveo maps multiple <meta name="category">
- *                                       tags as a single comma-separated string (e.g. "Protocols, Governance and
- *                                       accountability"). splitFieldValues() is used throughout to split on ","
- *                                       so each token is treated as an independent category. The raw string is
- *                                       stored as the data-category attribute on rendered card <li> and table <tr>
- *                                       elements; filtering matches any token against activeCategoryFilters.
+ * result.raw.topic                    — "Topic" facet value(s). Coveo may return multi-values as comma-separated
+ *                                       strings (e.g. "Finance and travel, Purchases and assets").
+ *                                       splitTopicValues() supports comma and semicolon delimiters and applies
+ *                                       a capitalization rule for comma splits: split only when the next non-space
+ *                                       character is uppercase (e.g. preserves "Conduct, integrity and risk").
+ *                                       The raw string is
+ *                                       stored as the data-topic attribute on rendered card <li> and table <tr>
+ *                                       elements; filtering matches any token against activeTopicFilters.
  * result.raw.collectionname           — human-readable collection name; used as display text in card and table views
  * result.raw.collectionassetid        — Squiz asset ID for the collection (not used in rendering)
  * result.raw.collectionurl            — direct collection URL; used as href in both card and table view
- * result.raw.resourceupdated          — last-updated date (YYYY-MM-DD HH:mm:ss)
+ * result.raw.approveddate            — last-updated date (DD MM YYYY)
  * result.raw.resourcetype             — file type key (e.g. "pdf_file", "word_doc"); mapped to uppercase label
  * result.raw.resourcefilesize         — human-readable file size (e.g. "354.2 KB")
  * result.raw.assetassetid              — Squiz Matrix asset ID; used to fetch upstream
  *                                        page links from the Matrix Management API
+ * result.raw.sourcepage               — optional immediate Source link label
+ * result.raw.sourceurl                — optional immediate Source link URL
  *
  * ── DOM CONTRACT ─────────────────────────────────────────────────────────────
  * IDs and attributes that must exist in the page HTML:
@@ -84,23 +91,25 @@
  *   #doc-search-table-body        <tbody> populated with table rows
  *   #doc-search-results-summary   receives "Showing X–Y of Z results" text
  *   #doc-search-pagination        receives prev/page-number/next buttons
- *   select[name="doc-search-sort"] dropdown; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
- *   #doc-search-view-toggle       button; aria-pressed="true" = table view active
+ *   input[name="doc-search-sort"] desktop sort radios; values: "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
+ *   #doc-search-view-toggle       button; aria-pressed="true" = card descriptions shown
  *   #doc-search-type-filters      <ul> receives Type facet checkboxes
- *   #doc-search-category-filters  <ul> receives Category facet checkboxes
- *   #doc-search-user-message      receives error / no-results message strings
+ *   #doc-search-topic-filters     <ul> receives Topic facet checkboxes
+ *   #doc-search-user-message      receives error / no-results HTML (see buildNoResultsHtml())
  *   .search-template[hidden]      card template element, cloned per result
  *
  * Card template data-ref slots (inside .search-template):
  *   [data-ref="search-result-link"]            <a> href = asseturl
  *   [data-ref="search-result-title"]           document title with formatFileMeta() suffix
- *                                                e.g. "My Document (PDF 354.2 KB)"
+ *                                                e.g. "My Document PDF (354.2 KB)"
  *   [data-ref="search-result-extlink"]         external-link icon — permanently hidden (display:none in CSS; JS does not remove hidden attr)
  *   [data-ref="search-result-description"]     description / excerpt text
- *   [data-ref="search-result-page-row"]         entire row hidden when no reference page links;
+ *   [data-ref="search-result-page-row"]         entire row hidden when no Source links remain;
  *                                               contains a 16×16 document icon SVG
  *                                               (.doc-search-result__page-icon) and a text span.
- *                                               Populated asynchronously after card render.
+ *                                               Can be populated immediately from
+ *                                               raw.sourcepage/raw.sourceurl, then merged
+ *                                               with asynchronously resolved page links.
  *   [data-ref="search-result-page-ids"]         comma-separated <a> links to parent intranet pages,
  *                                               each with a text fragment appended so the browser
  *                                               scrolls to and highlights the matching document:
@@ -122,15 +131,18 @@
  *                                        title text includes formatFileMeta() suffix
  *   .doc-search-table__col-updated     last-updated plain text
  *   .doc-search-table__col-type        doctype — <span class="doc-search-table__tag"> or empty
- *   .doc-search-table__col-collection  pages — comma-separated <a> links to parent intranet
+ *   .doc-search-table__col-collection  pages — comma-separated <a> Source links
+ *                                        (immediate sourcepage/sourceurl when present,
+ *                                        merged with resolved parent intranet page links)
  *                                        pages, resolved asynchronously from the Squiz Matrix
  *                                        Management API (same chain as the card view's page row).
- *                                        Initially shows "Loading\u2026" when raw.assetassetid is
- *                                        present; populated empty when no pages are resolved or
- *                                        when raw.assetassetid is absent. Pages whose URL path
- *                                        contains "/news/", "/dev/", or "archive" are excluded.
+ *                                        Initially shows immediate source links when present,
+ *                                        otherwise "Loading\u2026" when raw.assetassetid is
+ *                                        present; populated empty when no links remain. Pages
+ *                                        whose URL path contains "/news/", "/dev/", or
+ *                                        "archive" are excluded.
  *
- * Facet items (built by buildFacet into #doc-search-type-filters / #doc-search-category-filters):
+ * Facet items (built by buildFacet into #doc-search-type-filters / #doc-search-topic-filters):
  *   input[data-facet][data-value]       checkbox; data-facet = raw field name, data-value = raw value
  *   .doc-search-facet-item              <label> wrapper
  *   .doc-search-facet-item__label       human-readable value text
@@ -172,7 +184,7 @@
  *   masterResults         Array   — complete document corpus (all results for an empty query),
  *                                   excluding EXCLUDED_DOCTYPE documents. Populated once on the
  *                                   first runSearch() call and never cleared. Provides the stable
- *                                   value list for all facets so that Type and Category options
+ *                                   value list for all facets so that Type and Topic options
  *                                   do not disappear when a search query narrows the result set.
  *   originalResults       Array   — raw API response order for the current query;
  *                                   restored as allResults when sort = "relevancy"
@@ -180,8 +192,8 @@
  *   filteredResults       Array   — subset of allResults after checkbox filters applied
  *   currentPage           Number  — active pagination page (1-based)
  *   activeTypeFilters     Set     — checked "Type" facet values (raw.resourcedoctype)
- *   activeCategoryFilters Set     — checked "Category" facet values; each entry is a single trimmed token
- *                                   derived from splitting raw.category on "," via splitFieldValues()
+ *   activeTopicFilters    Set     — checked "Topic" facet values; each entry is a single trimmed token
+ *                                   derived from splitTopicValues() for raw.topic
  *   currentSort           String  — "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *   currentQuery          String  — last query string passed to runSearch()
  *   matrixMockCache       Object  — cached contents of matrix-asset-links.json (dev mode only;
@@ -208,7 +220,7 @@
  * ── FACET STRATEGY ───────────────────────────────────────────────────────────
  * buildFacet(results, field, containerId, activeSet) uses TWO data sources:
  *   • masterResults  → the canonical set of all possible values for `field`.
- *                      Guarantees that every Type/Category is always rendered.
+ *                      Guarantees that every Type/Topic is always rendered.
  *   • results        → the current (query-filtered) result set; used only for
  *                      computing per-value counts shown next to each label.
  * Values present in masterResults but absent from results receive a count of 0
@@ -231,6 +243,47 @@
   var isDev =
     ["localhost", "127.0.0.1"].includes(window.location.hostname) ||
     window.location.hostname.endsWith(".github.io");
+
+  function shouldEnforcePageLinkPrefixFilter() {
+    return window.location.hostname === "internal.nt.gov.au";
+  }
+
+  // Base prefix = protocol + host + first path segment, e.g.
+  // https://internal.nt.gov.au/dcdd
+  function getBasePrefixFromUrlLike(urlLike) {
+    if (!urlLike) return "";
+    try {
+      var parsed = new URL(urlLike, window.location.origin);
+      var firstSegment = parsed.pathname.split("/").filter(Boolean)[0];
+      return (
+        parsed.protocol +
+        "//" +
+        parsed.host +
+        (firstSegment ? "/" + firstSegment : "")
+      ).toLowerCase();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function getCurrentPageBasePrefix() {
+    return getBasePrefixFromUrlLike(window.location.href);
+  }
+
+  function doesPageLinkMatchCurrentBasePrefix(path) {
+    var currentPrefix = getCurrentPageBasePrefix();
+    var linkPrefix = getBasePrefixFromUrlLike(path);
+    if (!currentPrefix || !linkPrefix) return false;
+    return currentPrefix === linkPrefix;
+  }
+
+  function shouldBypassPageLinksStorage() {
+    return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
+  }
+
+  function shouldLogRecachePageLinks() {
+    return /\/_recache(?:\/|$|\?|#)/i.test(window.location.href);
+  }
 
   var COVEO_BASE_URL =
     "https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query";
@@ -418,11 +471,12 @@
   function resolvePageLinks(assetId) {
     if (!assetId) return Promise.resolve([]);
     if (pageLinksCache[assetId]) return pageLinksCache[assetId];
+    var bypassStorage = shouldBypassPageLinksStorage();
 
     // localStorage hit (production only — in dev the static mock JSON is
     // already cached in memory by fetchPageLinks(), so persisting it adds
     // no benefit and would clutter the developer's storage).
-    if (!isDev) {
+    if (!isDev && !bypassStorage) {
       var stored = loadPageLinksFromStorage(assetId);
       if (stored) {
         var resolvedPromise = Promise.resolve(stored);
@@ -432,7 +486,13 @@
     }
 
     var promise = resolvePageLinksUncached(assetId).then(function (pageLinks) {
-      if (!isDev) savePageLinksToStorage(assetId, pageLinks);
+      if (shouldLogRecachePageLinks()) {
+        console.log("[DCDD] /_recache page-links first-pass", {
+          assetId: assetId,
+          pageLinks: pageLinks,
+        });
+      }
+      if (!isDev && !bypassStorage) savePageLinksToStorage(assetId, pageLinks);
       return pageLinks;
     });
     pageLinksCache[assetId] = promise;
@@ -581,9 +641,13 @@
     var fragment = fileMeta ? "#:~:text=" + encodeURIComponent(fileMeta) : "";
     return pageLinks
       .map(function (p) {
+        var rawPath = (p.path || "").trim();
+        var href = /^https?:\/\//i.test(rawPath)
+          ? rawPath
+          : "https://" + rawPath;
         return (
-          '<a href="https://' +
-          $("<span>").text(p.path).html() +
+          '<a href="' +
+          $("<span>").text(href).html() +
           fragment +
           '">' +
           $("<span>").text(p.name).html() +
@@ -591,6 +655,93 @@
         );
       })
       .join(", ");
+  }
+
+  /**
+   * Returns an immediate Source link entry from Coveo fields when both
+   * sourcepage and sourceurl are present.
+   * @param {Object} raw
+   * @returns {Array<{name: string, path: string}>}
+   */
+  function getImmediateSourceLinks(raw) {
+    var sourceName = ((raw && raw.sourcepage) || "").trim();
+    var sourceUrl = ((raw && raw.sourceurl) || "").trim();
+    if (!sourceName || !sourceUrl) return [];
+    return [{ name: sourceName, path: sourceUrl }];
+  }
+
+  /**
+   * Merges immediate and fetched Source links, removing duplicates by path
+   * (case-insensitive) while preserving order.
+   * @param {Array<{name: string, path: string}>} immediateLinks
+   * @param {Array<{name: string, path: string}>} fetchedLinks
+   * @returns {Array<{name: string, path: string}>}
+   */
+  function mergeSourceLinks(immediateLinks, fetchedLinks) {
+    var out = [];
+    var seen = {};
+
+    function pushUnique(link) {
+      var name = ((link && link.name) || "").trim();
+      var path = ((link && link.path) || "").trim();
+      if (!name || !path) return;
+      var key = path.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push({ name: name, path: path });
+    }
+
+    (immediateLinks || []).forEach(pushUnique);
+    (fetchedLinks || []).forEach(pushUnique);
+    return out;
+  }
+
+  /**
+   * Filters rendered page-link <a> elements in a container and rewrites the
+   * container HTML using only kept links so separator commas stay correct.
+   * @param {jQuery} $container  jQuery element containing <a> links to filter
+   * @returns {number}  Count of links remaining after filtering.
+   */
+  function filterPageLinksByPrefix($container) {
+    var $links = $container.find("a");
+    if (!$links.length) return 0;
+    var ntgcentralPrefix = "https://ntgcentral.nt.gov.au/";
+
+    if (!shouldEnforcePageLinkPrefixFilter()) {
+      return $links.length;
+    }
+
+    var currentPrefix = getCurrentPageBasePrefix();
+    if (!currentPrefix) {
+      return $links.length;
+    }
+
+    var kept = [];
+    $links.each(function () {
+      var href = $(this).attr("href");
+      if (!href) return;
+      if (href.toLowerCase().indexOf(ntgcentralPrefix) === 0) {
+        kept.push(this);
+        return;
+      }
+      var linkPrefix = getBasePrefixFromUrlLike(href);
+      if (linkPrefix === currentPrefix) {
+        kept.push(this);
+      }
+    });
+
+    if (!kept.length) {
+      $container.empty();
+      return 0;
+    }
+
+    var html = kept
+      .map(function (link) {
+        return $("<div>").append($(link).clone()).html();
+      })
+      .join(", ");
+    $container.html(html);
+    return kept.length;
   }
 
   /**
@@ -626,6 +777,11 @@
   var RESULTS_PER_PAGE_TABLE = 15;
   var MAX_FACET_VISIBLE = 7;
 
+  var SEARCH_ANALYTICS_EVENTS = {
+    search: "policy_search",
+    zeroResults: "policy_search_zero_results",
+  };
+
   // ── Module state ─────────────────────────────────────────────────────────────
   var originalResults = []; // API response order — restored when sort = relevancy
   var EXCLUDED_DOCTYPE = "Supporting document"; // hard-excluded from all result sets and facets
@@ -634,13 +790,21 @@
   var masterResults = []; // full corpus — all documents regardless of query; used to keep facet lists stable
   var currentPage = 1;
   var activeTypeFilters = new Set();
-  var activeCategoryFilters = new Set();
+  var activeTopicFilters = new Set();
   var activeOwnerFilter = "";
   var currentSort = "relevancy";
   var currentQuery = "";
   var initialQuery = "";
   var filterAnimTimeout = null;
   var visibleResultIds = new Set();
+  var trackedSearchEvents = {};
+
+  var SORT_VALUES = {
+    relevancy: true,
+    "date descending": true,
+    "alpha ascending": true,
+    "alpha descending": true,
+  };
 
   // ── URL builder ──────────────────────────────────────────────────────────────
   /**
@@ -650,6 +814,47 @@
    */
   function buildCoveoUrl(query) {
     return COVEO_BASE_URL + "?searchterm=" + encodeURIComponent(query);
+  }
+
+  function trackAnalyticsEvent(eventName, params) {
+    if (typeof window.gtag !== "function") {
+      return;
+    }
+
+    window.gtag("event", eventName, params || {});
+  }
+
+  function trackSearchAnalytics(query, resultCount) {
+    var trimmedQuery = $.trim(query || "");
+    if (!trimmedQuery) {
+      return;
+    }
+
+    var searchKey = SEARCH_ANALYTICS_EVENTS.search + "::" + trimmedQuery;
+    if (!trackedSearchEvents[searchKey]) {
+      trackedSearchEvents[searchKey] = true;
+      trackAnalyticsEvent(SEARCH_ANALYTICS_EVENTS.search, {
+        search_term: trimmedQuery,
+        results_count: resultCount,
+        search_source: "onsite",
+      });
+    }
+
+    if (resultCount !== 0) {
+      return;
+    }
+
+    var zeroKey = SEARCH_ANALYTICS_EVENTS.zeroResults + "::" + trimmedQuery;
+    if (trackedSearchEvents[zeroKey]) {
+      return;
+    }
+
+    trackedSearchEvents[zeroKey] = true;
+    trackAnalyticsEvent(SEARCH_ANALYTICS_EVENTS.zeroResults, {
+      search_term: trimmedQuery,
+      results_count: 0,
+      search_source: "onsite",
+    });
   }
 
   /**
@@ -678,24 +883,97 @@
     "December",
   ];
   /**
-   * Formats a Coveo date string as "D\u00a0MMMM YYYY" (e.g. "5\u00a0March 2026").
-   * The non-breaking space between day and month prevents line-wrapping at that point.
-   * Returns the original string unchanged when it does not match the expected format,
-   * and returns "" when dateStr is falsy.
-   * @param {string} dateStr  Date in "YYYY-MM-DD HH:mm:ss" format (raw.resourceupdated).
+   * Parses raw.approveddate values in "DD MM YYYY" format.
+   * Returns null when input is missing/invalid.
+   * @param {string} dateStr
+   * @returns {{day:number,monthIndex:number,year:number,date:Date}|null}
+   */
+  function parseApprovedDate(dateStr) {
+    if (!dateStr) return null;
+    var m = String(dateStr)
+      .trim()
+      .match(/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/);
+    if (!m) return null;
+
+    var day = parseInt(m[1], 10);
+    var month = parseInt(m[2], 10);
+    var year = parseInt(m[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    var dt = new Date(year, month - 1, day);
+    if (
+      dt.getFullYear() !== year ||
+      dt.getMonth() !== month - 1 ||
+      dt.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return {
+      day: day,
+      monthIndex: month - 1,
+      year: year,
+      date: dt,
+    };
+  }
+
+  /**
+   * Parses raw.resourceupdated values in "YYYY-MM-DD HH:mm:ss" format.
+   * Returns null when input is missing/invalid.
+   * @param {string} dateStr
+   * @returns {{day:number,monthIndex:number,year:number,date:Date}|null}
+   */
+  function parseResourceUpdatedDate(dateStr) {
+    if (!dateStr) return null;
+    var m = String(dateStr)
+      .trim()
+      .match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+\d{1,2}:\d{1,2}:\d{1,2})?$/);
+    if (!m) return null;
+
+    var year = parseInt(m[1], 10);
+    var month = parseInt(m[2], 10);
+    var day = parseInt(m[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    var dt = new Date(year, month - 1, day);
+    if (
+      dt.getFullYear() !== year ||
+      dt.getMonth() !== month - 1 ||
+      dt.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return {
+      day: day,
+      monthIndex: month - 1,
+      year: year,
+      date: dt,
+    };
+  }
+
+  function getBestDateParts(raw) {
+    var parsedApproved = parseApprovedDate((raw || {}).approveddate);
+    if (parsedApproved) return parsedApproved;
+    return parseResourceUpdatedDate((raw || {}).resourceupdated);
+  }
+
+  /**
+   * Formats raw.approveddate as "D\u00a0MMMM YYYY" (e.g. "5\u00a0March 2026").
+   * Returns "" for missing or invalid inputs.
+   * @param {string} dateStr Date in "DD MM YYYY" format (raw.approveddate).
    * @returns {string}
    */
   function formatDate(dateStr) {
-    if (!dateStr) return "";
-    // Parse "YYYY-MM-DD HH:mm:ss" and format as "D\u00a0MMMM YYYY"
-    // Non-breaking space between day and month prevents them wrapping onto separate lines
-    var m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) {
-      var day = parseInt(m[3], 10);
-      var month = MONTHS[parseInt(m[2], 10) - 1];
-      return day + "\u00a0" + month + " " + m[1];
-    }
-    return dateStr;
+    var parsed = parseApprovedDate(dateStr);
+    if (!parsed) return "";
+    return parsed.day + " " + MONTHS[parsed.monthIndex] + " " + parsed.year;
+  }
+
+  function formatDateFromRaw(raw) {
+    var parsed = getBestDateParts(raw);
+    if (!parsed) return "";
+    return parsed.day + " " + MONTHS[parsed.monthIndex] + " " + parsed.year;
   }
 
   // ── File type labels ──────────────────────────────────────────────────────────
@@ -707,18 +985,18 @@
   };
 
   /**
-   * Builds a parenthetical file-type/size suffix for appending to a document title.
+   * Builds file-type/size metadata for appending to a document title.
    * Uses FILE_TYPE_LABELS to map raw.resourcetype to a display label (e.g. "PDF").
    * Returns an empty string when neither raw.resourcetype nor raw.resourcefilesize
    * is present.
    * @param {Object} raw  result.raw from the Coveo API response.
-   * @returns {string}  e.g. " (PDF 354.2 KB)", " (DOCX)", " (58.5 KB)", or "".
+   * @returns {string}  e.g. "PDF (354.2 KB)", "DOCX", "(58.5 KB)", or "".
    */
   function formatFileMeta(raw) {
     var ext = FILE_TYPE_LABELS[raw.resourcetype] || "";
     var size = raw.resourcefilesize || "";
-    if (ext && size) return "(" + ext + " " + size + ")";
-    if (ext) return "(" + ext + ")";
+    if (ext && size) return ext + " (" + size + ")";
+    if (ext) return ext;
     if (size) return "(" + size + ")";
     return "";
   }
@@ -726,7 +1004,11 @@
   function formatFileMetaHtml(raw) {
     var metaText = formatFileMeta(raw);
     if (!metaText) return "";
-    return '<span class="doc-search-result__file-meta">' + escHtml(metaText) + '</span>';
+    return (
+      '<span class="doc-search-result__file-meta">' +
+      escHtml(metaText) +
+      "</span>"
+    );
   }
 
   // ── View helpers ─────────────────────────────────────────────────────────────
@@ -742,7 +1024,7 @@
 
   // ── Filter building ──────────────────────────────────────────────────────────
   /**
-   * Rebuilds both the Type and Category facet lists.
+  * Rebuilds both the Type and Topic facet lists.
    * Delegates to buildFacet() for each facet field.
    *
    * `results` is used only to compute per-value counts — it should be allResults
@@ -766,18 +1048,37 @@
     );
     buildFacet(
       results,
-      "category",
-      "#doc-search-category-filters",
-      activeCategoryFilters,
+      "topic",
+      "#doc-search-topic-filters",
+      activeTopicFilters,
     );
-    buildDropdownFacet("resourceowner", "#doc-search-owner", activeOwnerFilter);
+    buildDropdownFacet(
+      results,
+      "resourceowner",
+      "#doc-search-owner",
+      activeOwnerFilter,
+    );
+    syncSortControls();
+  }
+
+  function syncSortControls() {
+    $('input[name="doc-search-sort"]').prop("checked", false);
+    $('input[name="doc-search-sort"][value="' + currentSort + '"]').prop(
+      "checked",
+      true,
+    );
+    $('input[name="doc-search-drawer-sort"]').prop("checked", false);
+    $('input[name="doc-search-drawer-sort"][value="' + currentSort + '"]').prop(
+      "checked",
+      true,
+    );
   }
 
   /**
    * Populates a facet <ul> with one checkbox item per known value for `field`.
    *
    * Value list  — derived from masterResults (the full corpus), so the same
-   *               set of Type / Category options is always rendered regardless
+  *               set of Type / Topic options is always rendered regardless
    *               of how narrow the active search query is.
    * Counts      — derived from `results` (typically allResults for the current
    *               query), reflecting how many documents in the current result
@@ -794,13 +1095,15 @@
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
-   * Multi-value fields: when a raw field value contains comma-separated tokens
-   * (e.g. raw.category = "Protocols, Governance and accountability"), splitFieldValues()
-   * is applied before counting and key extraction so each token is treated as an
-   * independent facet value. Single-value fields (e.g. resourcedoctype) are unaffected.
+  * Multi-value fields: topic values may arrive comma-delimited or
+   * semicolon-delimited (e.g. "Fraud and corruption, Finance and travel" or
+  * "Fraud and corruption; Finance and travel"). splitTopicValues() applies
+   * a capitalization rule for comma separation: split only when the next token
+   * starts with an uppercase letter. Labels like "Conduct, integrity and risk"
+   * remain intact.
    *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
-   * @param {string} field        result.raw property name (e.g. "resourcedoctype", "category").
+  * @param {string} field        result.raw property name (e.g. "resourcedoctype", "topic").
    * @param {string} containerId  jQuery selector for the target <ul> element.
    * @param {Set}    activeSet    Currently active filter values; matching checkboxes are rendered checked.
    */
@@ -823,13 +1126,77 @@
       : [];
   }
 
+  /**
+  * Splits topic values into trimmed, non-empty tokens.
+   * Supports semicolon and comma delimiters for multi-value records.
+   * For comma-delimited values, it only splits at commas where the next
+   * non-space character is uppercase, so labels such as
+  * "Conduct, integrity and risk" remain a single topic.
+   * @param {string} val
+   * @returns {string[]}
+   */
+  function splitTopicValues(val) {
+    if (!val) return [];
+
+    var raw = String(val).trim();
+    if (!raw) return [];
+
+    // Backward/forward compatibility: accept semicolon-delimited values directly.
+    if (raw.indexOf(";") !== -1) {
+      return raw
+        .split(";")
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+    }
+
+    var parts = [];
+    var current = "";
+
+    for (var i = 0; i < raw.length; i++) {
+      var ch = raw.charAt(i);
+      if (ch !== ",") {
+        current += ch;
+        continue;
+      }
+
+      var j = i + 1;
+      while (j < raw.length && raw.charAt(j) === " ") {
+        j++;
+      }
+
+      var next = j < raw.length ? raw.charAt(j) : "";
+      var startsNewTopic = /[A-Z]/.test(next);
+
+      if (startsNewTopic) {
+        if (current.trim()) {
+          parts.push(current.trim());
+        }
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+
+    if (current.trim()) {
+      parts.push(current.trim());
+    }
+
+    return parts;
+  }
+
   function buildFacet(results, field, containerId, activeSet) {
     // Count occurrences in the CURRENT result set (may be a filtered/searched subset)
     var counts = {};
     results.forEach(function (r) {
       var val = (r.raw || {})[field];
       if (val) {
-        splitFieldValues(val).forEach(function (v) {
+        var facetValues =
+          field === "topic"
+            ? splitTopicValues(val)
+            : splitFieldValues(val);
+        facetValues.forEach(function (v) {
           counts[v] = (counts[v] || 0) + 1;
         });
       }
@@ -840,7 +1207,11 @@
     masterResults.forEach(function (r) {
       var val = (r.raw || {})[field];
       if (val) {
-        splitFieldValues(val).forEach(function (v) {
+        var masterValues =
+          field === "topic"
+            ? splitTopicValues(val)
+            : splitFieldValues(val);
+        masterValues.forEach(function (v) {
           masterKeys[v] = true;
         });
       }
@@ -910,7 +1281,17 @@
     }
   }
 
-  function buildDropdownFacet(field, containerId, activeValue) {
+  function buildDropdownFacet(results, field, containerId, activeValue) {
+    var counts = {};
+    results.forEach(function (r) {
+      var val = (r.raw || {})[field];
+      if (val) {
+        splitFieldValues(val).forEach(function (v) {
+          counts[v] = (counts[v] || 0) + 1;
+        });
+      }
+    });
+
     var masterKeys = {};
     masterResults.forEach(function (r) {
       var val = (r.raw || {})[field];
@@ -930,8 +1311,20 @@
     $container.append('<option value="">All owners</option>');
 
     keys.forEach(function (key) {
-      var selected = (key === activeValue) ? " selected" : "";
-      var $option = $("<option value=\"" + escAttr(key) + "\"" + selected + ">" + escHtml(key) + "</option>");
+      var count = counts[key] || 0;
+      var selected = key === activeValue ? " selected" : "";
+      var disabled = count === 0 && key !== activeValue ? " disabled" : "";
+      var displayKey = key + " (" + count + ")";
+      var $option = $(
+        '<option value="' +
+          escAttr(key) +
+          '"' +
+          selected +
+          disabled +
+          ">" +
+          escHtml(displayKey) +
+          "</option>",
+      );
       $container.append($option);
     });
   }
@@ -940,8 +1333,7 @@
   /**
    * Rebuilds allResults from originalResults according to currentSort.
    * "relevancy" restores the original API order. "date descending" / "date ascending"
-   * sort on raw.resourceupdated using lexicographic comparison, which is correct for
-   * the "YYYY-MM-DD HH:mm:ss" format.
+   * parse raw.approveddate ("DD MM YYYY") before comparing.
    */
   function applySort() {
     if (currentSort === "relevancy") {
@@ -967,11 +1359,14 @@
       });
     } else {
       allResults = originalResults.slice().sort(function (a, b) {
-        var da = (a.raw || {}).resourceupdated || "";
-        var db = (b.raw || {}).resourceupdated || "";
+        var pa = getBestDateParts(a.raw || {});
+        var pb = getBestDateParts(b.raw || {});
+        if (!pa && !pb) return 0;
+        if (!pa) return 1;
+        if (!pb) return -1;
         return currentSort === "date descending"
-          ? db.localeCompare(da)
-          : da.localeCompare(db);
+          ? pb.date.getTime() - pa.date.getTime()
+          : pa.date.getTime() - pb.date.getTime();
       });
     }
   }
@@ -990,9 +1385,54 @@
    *
    * A clearTimeout guard prevents stacked animations on rapid filter toggles.
    */
-  function updateMobileFilterCount() {
-    var total = activeTypeFilters.size + activeCategoryFilters.size + (activeOwnerFilter ? 1 : 0);
-    $("#doc-search-filter-count, #doc-search-drawer-filter-count").text(total > 0 ? "(" + total + ")" : "");
+
+  /**
+   * Computes the number of items that would match the current drawer filter
+   * selections (without mutating module state) and updates the drawer's
+   * primary action label.
+   */
+  function updateDrawerItemCount() {
+    var drawerTypeFilters = new Set();
+    var drawerTopicFilters = new Set();
+    $("#doc-search-drawer [data-facet]").each(function () {
+      if ($(this).is(":checked")) {
+        var field = $(this).data("facet");
+        var value = $(this).data("value");
+        if (field === "resourcedoctype") {
+          drawerTypeFilters.add(value);
+        } else {
+          drawerTopicFilters.add(value);
+        }
+      }
+    });
+    var drawerOwner = $('select[name="doc-search-drawer-owner"]').val() || "";
+
+    var count = allResults.filter(function (r) {
+      var raw = r.raw || {};
+      if (drawerOwner) {
+        var owners = splitFieldValues(raw.resourceowner || "");
+        if (owners.indexOf(drawerOwner) === -1) return false;
+      }
+      if (
+        drawerTypeFilters.size > 0 &&
+        !drawerTypeFilters.has(raw.resourcedoctype)
+      ) {
+        return false;
+      }
+      if (
+        drawerTopicFilters.size > 0 &&
+        !splitTopicValues(raw.topic || "").some(function (v) {
+          return drawerTopicFilters.has(v);
+        })
+      ) {
+        return false;
+      }
+      return true;
+    }).length;
+
+    $("#doc-search-drawer-apply").text(
+      count === 1 ? "Show 1 result" : "Show " + count + " results",
+    );
   }
 
   /**
@@ -1074,15 +1514,19 @@
         return false;
       }
       if (
-        activeCategoryFilters.size > 0 &&
-        !splitFieldValues(raw.category || "").some(function (v) {
-          return activeCategoryFilters.has(v);
+        activeTopicFilters.size > 0 &&
+        !splitTopicValues(raw.topic || "").some(function (v) {
+          return activeTopicFilters.has(v);
         })
       ) {
         return false;
       }
       return true;
     });
+
+    // Toggle UI elements based on whether results exist
+    toggleNoResultsState(filteredResults.length);
+    updateResultsSummary();
 
     // Compute new page 1 slice and diff against currently visible items
     var perPage = resultsPerPage();
@@ -1114,7 +1558,6 @@
     if (leavingIds.size === 0) {
       var firstPos = snapshotPositions($container, stayingIds);
       renderPage(1, enteringIds);
-      updateMobileFilterCount();
       flipStayingItems($container, firstPos, stayingIds, isTable);
       filterAnimTimeout = setTimeout(function () {
         $("[data-result-id]")
@@ -1138,7 +1581,6 @@
     // After leave animation, rebuild with enter + FLIP animations
     filterAnimTimeout = setTimeout(function () {
       renderPage(1, enteringIds);
-      updateMobileFilterCount();
       flipStayingItems($container, firstPos, stayingIds, isTable);
 
       filterAnimTimeout = setTimeout(function () {
@@ -1191,6 +1633,8 @@
 
     results.forEach(function (result) {
       var raw = result.raw || {};
+      var fileMeta = formatFileMeta(raw).trim();
+      var immediateSourceLinks = getImmediateSourceLinks(raw);
       var id = resultId(result);
       var $item = $template
         .clone()
@@ -1210,7 +1654,7 @@
         .html(
           '<span class="doc-search-result__title-text">' +
             escHtml(raw.resourcefriendlytitle || result.title || "") +
-            "</span>"
+            "</span>",
         );
       $item
         .find('[data-ref="search-result-file-meta-container"]')
@@ -1223,8 +1667,8 @@
         .find('[data-ref="search-result-description"]')
         .text(raw.description || result.excerpt || "");
 
-      // Category (hidden data attribute for filter matching)
-      $item.attr("data-category", raw.category || "");
+      // Topic (hidden data attribute for filter matching)
+      $item.attr("data-topic", raw.topic || "");
 
       // Collection row
       var collectionName = raw.collectionname || "";
@@ -1244,26 +1688,45 @@
 
       // Page row — async fetch of upstream reference links
       var assetAssetId = raw.assetassetid || "";
-      if (assetAssetId) {
+      if (assetAssetId || immediateSourceLinks.length) {
         (function ($card) {
           var $pageRow = $card.find('[data-ref="search-result-page-row"]');
+          var $pageIds = $card.find('[data-ref="search-result-page-ids"]');
           $pageRow.removeAttr("hidden");
-          $card
-            .find('[data-ref="search-result-page-ids"]')
-            .text("Loading\u2026");
-          resolvePageLinks(assetAssetId).then(function (pageLinks) {
-            if (!pageLinks.length) {
+
+          if (immediateSourceLinks.length) {
+            $pageIds.html(renderPageLinksHtml(immediateSourceLinks, fileMeta));
+            var initialCount = filterPageLinksByPrefix($pageIds);
+            if (!initialCount && !assetAssetId) {
               $pageRow.attr("hidden", true);
               return;
             }
-            if (pageLinks.length > 1) {
-              $card
-                .find('[data-ref="search-result-page-label"]')
-                .text("Pages:");
+            $card
+              .find('[data-ref="search-result-page-label"]')
+              .text(initialCount > 1 ? "Sources:" : "Source:");
+          } else {
+            $pageIds.text("Loading\u2026");
+          }
+
+          if (!assetAssetId) {
+            return;
+          }
+
+          resolvePageLinks(assetAssetId).then(function (pageLinks) {
+            var mergedLinks = mergeSourceLinks(immediateSourceLinks, pageLinks);
+            if (!mergedLinks.length) {
+              $pageRow.attr("hidden", true);
+              return;
+            }
+            $pageIds.html(renderPageLinksHtml(mergedLinks, fileMeta));
+            var visibleCount = filterPageLinksByPrefix($pageIds);
+            if (!visibleCount) {
+              $pageRow.attr("hidden", true);
+              return;
             }
             $card
-              .find('[data-ref="search-result-page-ids"]')
-              .html(renderPageLinksHtml(pageLinks, formatFileMeta(raw).trim()));
+              .find('[data-ref="search-result-page-label"]')
+              .text(visibleCount > 1 ? "Sources:" : "Source:");
           });
         })($item);
       }
@@ -1278,9 +1741,14 @@
       }
 
       // Last updated
-      $item
-        .find('[data-ref="search-result-last-updated"]')
-        .text(formatDate(raw.resourceupdated));
+      var updated = formatDateFromRaw(raw);
+      var $updatedWrap = $item.find(".doc-search-result__updated");
+      if (updated) {
+        $item.find('[data-ref="search-result-last-updated"]').text(updated);
+        $updatedWrap.show();
+      } else {
+        $updatedWrap.hide();
+      }
 
       $list.append($item);
     });
@@ -1304,11 +1772,20 @@
       var assetAssetId = raw.assetassetid || "";
       var titleText = raw.resourcefriendlytitle || result.title || "";
       var doctype = raw.resourcedoctype || "";
-      var updated = formatDate(raw.resourceupdated);
+      var updated = formatDateFromRaw(raw);
+      var fileMeta = formatFileMeta(raw).trim();
+      var immediateSourceLinks = getImmediateSourceLinks(raw);
 
       var extIcon = "";
-
-      var pagesCellInitial = assetAssetId ? "Loading\u2026" : "";
+      var pagesCellInitialHtml = "";
+      if (immediateSourceLinks.length) {
+        pagesCellInitialHtml = renderPageLinksHtml(
+          immediateSourceLinks,
+          fileMeta,
+        );
+      } else if (assetAssetId) {
+        pagesCellInitialHtml = escHtml("Loading\u2026");
+      }
 
       var $row = $(
         "<tr>" +
@@ -1335,13 +1812,13 @@
             : "") +
           "</td>" +
           '<td class="doc-search-table__col-collection doc-search-table__col-pages">' +
-          escHtml(pagesCellInitial) +
+          pagesCellInitialHtml +
           "</td>" +
           "</tr>",
       );
       var id = resultId(result);
       $row.attr("data-result-id", id);
-      $row.attr("data-category", raw.category || "");
+      $row.attr("data-topic", raw.topic || "");
       if (enteringIds && enteringIds.has(id)) {
         $row.addClass("doc-search-row--entering");
       }
@@ -1351,14 +1828,29 @@
       if (assetAssetId) {
         (function ($cell, fileMeta) {
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
-            $cell.html(renderPageLinksHtml(pageLinks, fileMeta));
+            var mergedLinks = mergeSourceLinks(immediateSourceLinks, pageLinks);
+            $cell.html(renderPageLinksHtml(mergedLinks, fileMeta));
+            filterPageLinksByPrefix($cell);
           });
-        })(
-          $row.find(".doc-search-table__col-pages"),
-          formatFileMeta(raw).trim(),
-        );
+        })($row.find(".doc-search-table__col-pages"), fileMeta);
       }
     });
+  }
+
+  // ── No results state ──────────────────────────────────────────────────────────
+  /**
+   * Toggles visibility of filter controls and sidebar based on result count.
+   * When no results are found, hides: mobile filter button, results header
+    * (summary + controls), table wrapper, sidebar, and pagination.
+   * @param {number} resultCount  Total filtered result count.
+   */
+  function toggleNoResultsState(resultCount) {
+    var noResults = resultCount === 0;
+    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
+    $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
+    $("#doc-search-sidebar").toggleClass("d-none", noResults);
+    $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
 
   // ── Results summary line ──────────────────────────────────────────────────────
@@ -1374,7 +1866,7 @@
     var $summary = $("#doc-search-results-summary");
 
     if (total === 0) {
-      $summary.text("No results found.");
+      $summary.text("");
     } else {
       $summary.text(
         "Showing " +
@@ -1455,6 +1947,21 @@
   }
 
   /**
+   * Toggles visibility of filter controls and sidebar based on result count.
+   * When no results are found, hides: mobile filter button, results header
+    * (summary + controls), table wrapper, sidebar, and pagination.
+   * @param {number} resultCount  Total filtered result count.
+   */
+  function toggleNoResultsState(resultCount) {
+    var noResults = resultCount === 0;
+    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
+    $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
+    $("#doc-search-sidebar").toggleClass("d-none", noResults);
+    $("#doc-search-pagination").toggleClass("d-none", noResults);
+  }
+
+  /**
    * Returns a mixed array of page numbers and "…" gap markers for the pagination bar.
    * Always includes page 1, the last page, and current ±1. Inserts "…" where the gap
    * is larger than one page. Returns a flat consecutive range when total ≤ 7.
@@ -1491,12 +1998,47 @@
 
   // ── User message (error / no results) ────────────────────────────────────────
   /**
-   * Sets the #doc-search-user-message text. Pass an empty string or omit `msg`
-   * to clear any existing message.
-   * @param {string} [msg]  Text to display (e.g. an error string or "No results found.").
+   * Sets the #doc-search-user-message content. Pass an empty string or omit `msg`
+   * to clear any existing message. Accepts an HTML string.
+   * @param {string} [msg]  HTML to display (e.g. an error string or no-results block).
    */
   function setUserMessage(msg) {
-    $("#doc-search-user-message").text(msg || "");
+    $("#doc-search-user-message").html(msg || "");
+  }
+
+  /**
+   * Builds the structured "No results" HTML block shown when a query yields
+   * zero results.  Includes a heading, the bolded query term, and a suggestion.
+   * @param {string} query  The search term that returned no results.
+   * @returns {string} HTML string for the no-results state.
+   */
+  function buildNoResultsHtml(query) {
+    return (
+      '<div class="doc-search-no-results" data-state="No result">' +
+      '<div class="doc-search-no-results__inner">' +
+      '<h2 class="doc-search-no-results__heading">No results</h2>' +
+      '<p class="doc-search-no-results__detail">There were no results for <strong>' +
+      escHtml(query) +
+      "</strong></p>" +
+      '<p class="doc-search-no-results__suggestion">Try refining your search with some different key words</p>' +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  /**
+   * Toggles visibility of filter controls and sidebar based on result count.
+   * When no results are found, hides: mobile filter button, results header
+    * (summary + controls), table wrapper, sidebar, drawer, and pagination.
+   * @param {number} resultCount  Total filtered result count.
+   */
+  function toggleNoResultsState(resultCount) {
+    var noResults = resultCount === 0;
+    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
+    $(".doc-search-results-header").toggleClass("d-none", noResults);
+    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
+    $("#doc-search-sidebar").toggleClass("d-none", noResults);
+    $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
 
   // ── HTML helpers ─────────────────────────────────────────────────────────────
@@ -1541,6 +2083,115 @@
       .replace(/'/g, "&#39;");
   }
 
+  // ── Matrix content relocation ──────────────────────────────────────────────
+  var assetContentsMoved = false;
+  var assetContentsSourceObserver = null;
+  var assetContentsRootObserver = null;
+  var assetContentsObserverTimeoutId = null;
+  var ASSET_CONTENTS_OBSERVER_TIMEOUT_MS = 30000;
+
+  /**
+   * Disconnects observers used for moving #asset-contents content and clears
+   * the timeout guard.
+   */
+  function disconnectAssetContentsObservers() {
+    if (assetContentsSourceObserver) {
+      assetContentsSourceObserver.disconnect();
+      assetContentsSourceObserver = null;
+    }
+    if (assetContentsRootObserver) {
+      assetContentsRootObserver.disconnect();
+      assetContentsRootObserver = null;
+    }
+    if (assetContentsObserverTimeoutId) {
+      window.clearTimeout(assetContentsObserverTimeoutId);
+      assetContentsObserverTimeoutId = null;
+    }
+  }
+
+  /**
+   * Moves all child nodes from #asset-contents into #custom-content.
+   * Returns true only when a move was completed.
+   * @returns {boolean}
+   */
+  function moveAssetContentsIntoCustom() {
+    if (assetContentsMoved) return true;
+
+    var target = document.getElementById("custom-content");
+    var source = document.getElementById("asset-contents");
+
+    if (!target || !source || source === target || !source.firstChild) {
+      return false;
+    }
+
+    while (source.firstChild) {
+      target.appendChild(source.firstChild);
+    }
+
+    assetContentsMoved = true;
+    disconnectAssetContentsObservers();
+    return true;
+  }
+
+  /**
+   * Observes #asset-contents for late CMS injection and moves its children into
+   * #custom-content when available.
+   */
+  function initAssetContentsRelocation() {
+    if (assetContentsMoved) return;
+    if (!document.getElementById("custom-content")) return;
+
+    if (moveAssetContentsIntoCustom()) {
+      return;
+    }
+
+    if (typeof MutationObserver === "undefined") {
+      return;
+    }
+
+    function observeSource(source) {
+      if (!source || assetContentsSourceObserver) return;
+
+      assetContentsSourceObserver = new MutationObserver(function () {
+        moveAssetContentsIntoCustom();
+      });
+
+      assetContentsSourceObserver.observe(source, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    var source = document.getElementById("asset-contents");
+    if (source) {
+      observeSource(source);
+    } else if (document.body) {
+      assetContentsRootObserver = new MutationObserver(function () {
+        var found = document.getElementById("asset-contents");
+        if (!found) return;
+
+        if (assetContentsRootObserver) {
+          assetContentsRootObserver.disconnect();
+          assetContentsRootObserver = null;
+        }
+
+        observeSource(found);
+        moveAssetContentsIntoCustom();
+      });
+
+      assetContentsRootObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    if (!assetContentsObserverTimeoutId) {
+      assetContentsObserverTimeoutId = window.setTimeout(function () {
+        disconnectAssetContentsObservers();
+      }, ASSET_CONTENTS_OBSERVER_TIMEOUT_MS);
+    }
+  }
+
   // ── Core search ──────────────────────────────────────────────────────────────
   /**
    * Executes a search for the given query and renders the results.
@@ -1558,10 +2209,10 @@
    *   applySort() → buildFilters(allResults) → applyFilters() → renderPage(1)
    *
    * When the query returns zero results, buildFilters(allResults) is still called
-   * (with an empty array) so the sidebar renders the full Type/Category list with
+  * (with an empty array) so the sidebar renders the full Type/Topic list with
    * counts of 0, rather than disappearing entirely.
    *
-   * Existing sort and filter state (activeTypeFilters, activeCategoryFilters,
+  * Existing sort and filter state (activeTypeFilters, activeTopicFilters,
    * currentSort) are preserved across calls. Clear those Sets before calling if
    * a clean filter slate is needed.
    *
@@ -1619,6 +2270,7 @@
         originalResults = (data.results || []).filter(function (r) {
           return (r.raw || {}).resourcedoctype !== EXCLUDED_DOCTYPE;
         });
+        trackSearchAnalytics(query, originalResults.length);
 
         // In dev or when query is empty the single fetch IS the full corpus
         if (masterResults.length === 0) {
@@ -1633,10 +2285,9 @@
         applySort();
 
         if (allResults.length === 0) {
+          toggleNoResultsState(0);
           setUserMessage(
-            query
-              ? 'No results found for "' + query + '".'
-              : "No documents found.",
+            query ? buildNoResultsHtml(query) : "No documents found.",
           );
           buildFilters(allResults);
           return;
@@ -1669,17 +2320,23 @@
     );
     buildFacet(
       allResults,
-      "category",
-      "#doc-search-drawer-category-filters",
-      activeCategoryFilters,
+      "topic",
+      "#doc-search-drawer-topic-filters",
+      activeTopicFilters,
     );
-    buildDropdownFacet("resourceowner", "#doc-search-drawer-owner", activeOwnerFilter);
-    $('select[name="doc-search-drawer-sort"]').val(currentSort);
+    buildDropdownFacet(
+      allResults,
+      "resourceowner",
+      "#doc-search-drawer-owner",
+      activeOwnerFilter,
+    );
+    syncSortControls();
   }
 
   /** Opens the mobile filter drawer. */
   function openDrawer() {
     buildDrawerFilters();
+    updateDrawerItemCount();
     $("#doc-search-drawer").addClass("is-open").attr("aria-hidden", "false");
     $("#doc-search-drawer-overlay")
       .addClass("is-open")
@@ -1719,13 +2376,13 @@
     }
   });
 
-  // Apply filters from drawer
+  // Apply filters from drawer via the "Show N results" button
   $(document).on("click", "#doc-search-drawer-apply", function () {
     // Read sort
     var drawerSort =
-      $('select[name="doc-search-drawer-sort"]').val() || "relevancy";
+      $('input[name="doc-search-drawer-sort"]:checked').val() || "relevancy";
     currentSort = drawerSort;
-    $('select[name="doc-search-sort"]').val(drawerSort);
+    syncSortControls();
 
     // Read owner
     var drawerOwner = $('select[name="doc-search-drawer-owner"]').val() || "";
@@ -1734,7 +2391,7 @@
 
     // Rebuild filter sets from drawer checkboxes
     activeTypeFilters.clear();
-    activeCategoryFilters.clear();
+    activeTopicFilters.clear();
     $("#doc-search-drawer [data-facet]").each(function () {
       if ($(this).is(":checked")) {
         var field = $(this).data("facet");
@@ -1742,7 +2399,7 @@
         if (field === "resourcedoctype") {
           activeTypeFilters.add(value);
         } else {
-          activeCategoryFilters.add(value);
+          activeTopicFilters.add(value);
         }
       }
     });
@@ -1757,15 +2414,27 @@
   // Clear all inside drawer (resets UI without applying)
   $(document).on("click", "#doc-search-drawer-clear", function () {
     $("#doc-search-drawer [data-facet]").prop("checked", false);
-    $('select[name="doc-search-drawer-sort"]').val("relevancy");
+    $('input[name="doc-search-drawer-sort"]').prop("checked", false);
+    $('input[name="doc-search-drawer-sort"][value="relevancy"]').prop(
+      "checked",
+      true,
+    );
     $('select[name="doc-search-drawer-owner"]').val("");
+    updateDrawerItemCount();
   });
+
+  // Update drawer action count when owner select changes inside drawer
+  $(document).on(
+    "change",
+    'select[name="doc-search-drawer-owner"]',
+    updateDrawerItemCount,
+  );
 
   // Clear all on sidebar (applies immediately)
   $(document).on("click", "#doc-search-sidebar-clear", function () {
     $("#doc-search-sidebar [data-facet]").prop("checked", false);
     activeTypeFilters.clear();
-    activeCategoryFilters.clear();
+    activeTopicFilters.clear();
     activeOwnerFilter = "";
     $('select[name="doc-search-owner"]').val("");
     applyFilters();
@@ -1774,14 +2443,15 @@
   // ── Event: checkbox filter change ────────────────────────────────────────────
   $(document).on("change", "[data-facet]", function () {
     var $cb = $(this);
-    // Inside the drawer, changes are applied only via the "Apply filters" button
+    // Inside the drawer, changes are applied only via the "Show N results" button
     if ($cb.closest("#doc-search-drawer").length) {
+      updateDrawerItemCount();
       return;
     }
     var field = $cb.data("facet");
     var value = $cb.data("value");
     var set =
-      field === "resourcedoctype" ? activeTypeFilters : activeCategoryFilters;
+      field === "resourcedoctype" ? activeTypeFilters : activeTopicFilters;
 
     if ($cb.is(":checked")) {
       set.add(value);
@@ -1831,7 +2501,7 @@
   });
 
   // ── Event: sort change ───────────────────────────────────────────────────────
-  $(document).on("change", 'select[name="doc-search-sort"]', function () {
+  $(document).on("change", 'input[name="doc-search-sort"]', function () {
     currentSort = $(this).val();
     applySort();
     applyFilters();
@@ -1847,21 +2517,33 @@
   $(document).on("click", "#doc-search-view-toggle", function () {
     var $btn = $(this);
     var $col = $("#doc-search-results-col");
-    var tableNow = $col.attr("data-view") === "table";
+    var toggleOn = $btn.attr("aria-pressed") !== "true";
+    var newView = toggleOn ? "card" : "table";
 
-    if (tableNow) {
-      $col.attr("data-view", "card");
-      $btn.attr("aria-pressed", "false");
-    } else {
-      $col.attr("data-view", "table");
-      $btn.attr("aria-pressed", "true");
-    }
+    $col.attr("data-view", newView);
+    $btn.attr("aria-pressed", toggleOn ? "true" : "false");
+
+    // Auto-save the view preference instantly
+    localStorage.setItem("docSearchView", newView);
+
     renderPage(1);
+  });
+
+  // ── Event: View preference modal ─────────────────────────────────────────────
+  $(document).on("click", "#doc-search-view-save-btn", function () {
+    var currentView = $("#doc-search-results-col").attr("data-view");
+    localStorage.setItem("docSearchView", currentView);
+    $("#doc-search-view-modal-overlay").attr("hidden", true);
+  });
+
+  $(document).on("click", "#doc-search-view-dont-save-btn", function () {
+    localStorage.removeItem("docSearchView");
+    $("#doc-search-view-modal-overlay").attr("hidden", true);
   });
 
   // ── Reset table view on mobile ────────────────────────────────────────────────
   // If the viewport drops to mobile width while table view is active, switch back
-  // to card view so the hidden toggle doesn't leave a broken table-only state.
+  // to card view so the hidden description toggle cannot leave a table-only state.
   (function () {
     var mq = window.matchMedia("(max-width: 900px)");
     function resetTableViewOnMobile(e) {
@@ -1870,7 +2552,7 @@
         $("#doc-search-results-col").attr("data-view") === "table"
       ) {
         $("#doc-search-results-col").attr("data-view", "card");
-        $("#doc-search-view-toggle").attr("aria-pressed", "false");
+        $("#doc-search-view-toggle").attr("aria-pressed", "true");
         renderPage(currentPage);
       }
     }
@@ -1879,14 +2561,32 @@
 
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
+    initAssetContentsRelocation();
+
     // Read initial state from URL params
     initialQuery = getUrlParam("searchterm") || "";
     var urlSort = getUrlParam("sort");
 
-    if (urlSort) {
+    if (urlSort && SORT_VALUES[urlSort]) {
       currentSort = urlSort;
-      $('select[name="doc-search-sort"]').val(urlSort);
     }
+    syncSortControls();
+
+    // Restore a saved desktop preference; otherwise the markup defaults to table.
+    var savedView = localStorage.getItem("docSearchView");
+    var initialView =
+      savedView === "table" || savedView === "card" ? savedView : "table";
+
+    // Mobile remains card-only without replacing the saved desktop preference.
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      initialView = "card";
+    }
+
+    $("#doc-search-results-col").attr("data-view", initialView);
+    $("#doc-search-view-toggle").attr(
+      "aria-pressed",
+      initialView === "card" ? "true" : "false",
+    );
 
     // Pre-fill search input if present
     $("#search").val(initialQuery);

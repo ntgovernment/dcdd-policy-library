@@ -14,7 +14,7 @@
   justify-content: flex-start;
   align-items: center;
   gap: 10px;
-  padding: 24px 32px;
+  padding: 24px 16px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -92,6 +92,8 @@
 
 .ntgc-search-section__icon {
   display: block;
+  font-size: 20px;
+  line-height: 1;
   width: 20px;
   height: 20px;
 }
@@ -170,27 +172,31 @@ tr.doc-search-row--moving {
 /* ── Results header bar ───────────────────────────────────────────────────── */
 .doc-search-results-header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 12px 0 16px;
   border-bottom: 2px solid var(--clr-border-subtle);
   margin-bottom: 0;
 }
 
 .doc-search-results-summary {
+  flex: 1 1 auto;
+  margin: 0 !important;
   font-size: var(--font-size-sm);
   color: var(--clr-text-alt);
 }
 
-/* View toggle + Sort row */
+/* Results controls */
 .doc-search-results-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  flex: 0 0 auto;
   gap: 16px;
 }
 
-/* ── View toggle pill ─────────────────────────────────────────────────────── */
+/* ── Description toggle pill ──────────────────────────────────────────────── */
 .doc-search-view-toggle {
   display: flex;
   align-items: center;
@@ -225,9 +231,6 @@ tr.doc-search-row--moving {
   transition: transform 0.2s;
 }
 
-.doc-search-results-col[data-view="table"]
-  ~ .doc-search-results-header
-  .doc-search-view-toggle__pill,
 .doc-search-view-toggle[aria-pressed="true"] .doc-search-view-toggle__pill {
   background: var(--clr-icon-default);
 }
@@ -275,8 +278,20 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
+/* Keep Matrix-injected custom content constrained to the results column width */
+#custom-content {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#custom-content > * {
+  max-width: 100%;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
-   CARD VIEW  (default — data-view="card" on .doc-search-results-col)
+  CARD VIEW  (descriptions shown via data-view="card")
    ══════════════════════════════════════════════════════════════════════════ */
 .doc-search-results-list {
   list-style: none;
@@ -442,7 +457,7 @@ tr.doc-search-row--moving {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   TABLE VIEW  (toggled via [data-view="table"] on .doc-search-results-col)
+  TABLE VIEW  (desktop default via [data-view="table"])
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* Hide card-only elements */
@@ -462,6 +477,10 @@ tr.doc-search-row--moving {
 
 .doc-search-results-col[data-view="table"] .doc-search-table-wrap {
   display: block;
+}
+
+.doc-search-table-wrap.d-none {
+  display: none !important;
 }
 
 /* Table */
@@ -829,9 +848,55 @@ tr.doc-search-row--moving {
 
 /* ── No results state ─────────────────────────────────────────────────────── */
 .doc-search-no-results {
-  padding: 32px 0;
-  font-size: var(--font-size-sm);
-  color: var(--clr-text-alt);
+  width: 100%;
+  padding: 32px;
+  background: var(--clr-bg-default, white);
+  border-bottom: 1px solid var(--clr-border-subtle, #d0e0e0);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.doc-search-no-results__inner {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 12px;
+  align-self: stretch;
+}
+
+.doc-search-no-results__heading {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  font-family: Roboto, sans-serif !important;
+  line-height: 24px !important;
+  color: var(--clr-text-default, #102040) !important;
+  margin: 0 !important;
+}
+
+.doc-search-no-results__detail {
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  font-family: Roboto, sans-serif !important;
+  line-height: 24px !important;
+  color: var(--clr-text-alt, #384560) !important;
+  margin: 0 !important;
+  word-wrap: break-word;
+}
+
+.doc-search-no-results__suggestion {
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  font-family: Roboto, sans-serif !important;
+  line-height: 24px !important;
+  color: var(--clr-text-alt, #384560) !important;
+  margin: 0 !important;
+  word-wrap: break-word;
+  align-self: stretch;
 }
 
 /* ── Sort dropdown ───────────────────────────────────────────────────────── */
@@ -839,29 +904,52 @@ tr.doc-search-row--moving {
   gap: 8px;
 }
 
-/* Inline sort (in results header) — horizontal label + compact select */
-.doc-search-filter-group--sort-inline {
-  flex-direction: row;
+.doc-search-filter-group--sort-radios {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.doc-search-sort-radio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-search-sort-radio {
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto; /* push to right of controls row */
-}
-
-.doc-search-filter-group--sort-inline .doc-search-sort-label {
   font-size: var(--font-size-sm);
-  white-space: nowrap;
+  color: var(--clr-text-default);
+  cursor: pointer;
 }
 
-.doc-search-filter-group--sort-inline .doc-search-sort-select {
-  width: auto;
-  min-width: 150px;
-  min-height: 40px;
+.doc-search-sort-radio__input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: url("data:image/svg+xml,<svg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'><circle cx='16' cy='16' r='11' fill='white'/><path d='M16 28C9.37258 28 4 22.6274 4 16C4 9.37258 9.37258 4 16 4C22.6274 4 28 9.37258 28 16C28 22.6274 22.6274 28 16 28ZM16 26.2857C21.6801 26.2857 26.2857 21.6801 26.2857 16C26.2857 10.3199 21.6801 5.71429 16 5.71429C10.3199 5.71429 5.71429 10.3199 5.71429 16C5.71429 21.6801 10.3199 26.2857 16 26.2857Z' fill='%23102040'/></svg>")
+    center / contain no-repeat;
 }
 
-.doc-search-filter-group--sort-inline .doc-search-sort-select__input {
-  min-height: 40px;
-  font-size: var(--font-size-sm);
-  padding: 0 40px 0 12px;
+.doc-search-sort-radio__input:checked {
+  background: url("data:image/svg+xml,<svg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'><circle cx='16' cy='16' r='11' fill='white'/><path d='M16 28C9.37258 28 4 22.6274 4 16C4 9.37258 9.37258 4 16 4C22.6274 4 28 9.37258 28 16C28 22.6274 22.6274 28 16 28ZM16 26.2857C21.6801 26.2857 26.2857 21.6801 26.2857 16C26.2857 10.3199 21.6801 5.71429 16 5.71429C10.3199 5.71429 5.71429 10.3199 5.71429 16C5.71429 21.6801 10.3199 26.2857 16 26.2857Z' fill='%23102040'/><circle cx='16' cy='16' r='6' fill='%23102040'/></svg>")
+    center / contain no-repeat;
+}
+
+.doc-search-sort-radio__input:focus-visible {
+  outline: 2px solid var(--clr-focus, #88bc88);
+  outline-offset: 2px;
+}
+
+.doc-search-sort-radio__label {
+  font-weight: var(--font-weight-regular) !important;
+  font-size: var(--font-size-sm) !important;
 }
 
 .doc-search-sort-label {
@@ -1060,26 +1148,7 @@ tr.doc-search-row--moving {
   flex-direction: column;
   gap: 24px;
   /* leave room for the footer */
-  padding-bottom: 100px;
-}
-
-/* Clear all button (tertiary) */
-.doc-search-drawer__clear {
-  background: none;
-  border: none;
-  padding: 12px 0;
-  color: var(--clr-link-default, #102040);
-  font-size: 14px;
-  font-family: Roboto, sans-serif;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-  text-align: left;
-  align-self: flex-start;
-}
-
-.doc-search-drawer__clear:hover {
-  color: var(--clr-tertiary);
+  padding-bottom: 128px;
 }
 
 /* Drawer footer */
@@ -1088,12 +1157,39 @@ tr.doc-search-row--moving {
   bottom: 0;
   left: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   padding: 16px;
   background: var(--clr-bg-default, white);
   border-top: 1px solid var(--clr-border-subtle, #d0e0e0);
 }
 
-/* Apply filters button (primary) */
+/* Clear all button (secondary link) */
+.doc-search-drawer__clear {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: var(--clr-link-default, #102040);
+  font-size: 14px;
+  font-family: Roboto, sans-serif;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: center;
+}
+
+.doc-search-drawer__clear:hover {
+  color: var(--clr-tertiary);
+}
+
+.doc-search-drawer__clear:focus-visible {
+  outline: 2px solid var(--clr-focus, #88bc88);
+  outline-offset: 2px;
+}
+
+/* Show results button (primary) */
 .doc-search-drawer__apply {
   display: flex;
   justify-content: center;
@@ -1132,13 +1228,8 @@ tr.doc-search-row--moving {
     flex-direction: column;
   }
 
-  /* Hide table view toggle on mobile */
+  /* Mobile remains card-only, so hide the description toggle */
   .doc-search-view-toggle {
-    display: none;
-  }
-
-  /* Hide inline sort on mobile — drawer sort is used instead */
-  .doc-search-filter-group--sort-inline {
     display: none;
   }
 
@@ -1188,4 +1279,56 @@ tr.doc-search-row--moving {
     color: var(--clr-link-default, #102040);
     flex-shrink: 0;
   }
+}
+
+/* ── View Preference Modal ────────────────────────────────────────────────── */
+.doc-search-view-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(16, 32, 64, 0.5); /* using var(--clr-text-default) at 50% */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.doc-search-view-modal-overlay[hidden] {
+  display: none !important;
+}
+
+.doc-search-view-modal {
+  background: var(--clr-bg-default, #fff);
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  border-radius: 0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.doc-search-view-modal__title {
+  margin: 0;
+  margin-top: 0 !important;
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  color: var(--clr-text-default);
+}
+
+.doc-search-view-modal__desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--clr-text-alt);
+  line-height: 1.5;
+}
+
+.doc-search-view-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
 }
