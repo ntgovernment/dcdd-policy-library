@@ -304,8 +304,10 @@ import mockSources from "../mock/sources.json";
   var SOURCES_UPDATER_URL =
     "https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js";
   var SOURCES_JSAPI_KEY = "1603940920";
+  var SOURCES_ASSET_ID = "979085";
   var sharedSourcesPromise = null;
   var recachedSources = {};
+  var recacheResolutionFailures = {};
   var recachePublished = false;
 
   // Per-page-load cache of resolved page-link Promises, keyed by assetId.
@@ -392,7 +394,38 @@ import mockSources from "../mock/sources.json";
     return sorted;
   }
 
-  function publishSources(sources) {
+  function parseJsApiResponse(response, operation) {
+    return response.text().then(function (responseText) {
+      var result = null;
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch (e) {
+        /* Include the raw response in the error below. */
+      }
+
+      if (
+        !response.ok ||
+        !result ||
+        result.success === false ||
+        result.error
+      ) {
+        var detail = result
+          ? result.error || JSON.stringify(result)
+          : responseText.slice(0, 500);
+        throw new Error(
+          operation + " failed (HTTP " + response.status + "): " + detail,
+        );
+      }
+      return result;
+    });
+  }
+
+  function getSourcesNonce() {
+    var tokenElement = document.getElementById("token");
+    if (tokenElement && tokenElement.value.trim()) {
+      return Promise.resolve(tokenElement.value.trim());
+    }
+
     return fetch(SOURCES_UPDATER_URL + "?SQ_ACTION=getToken", {
       credentials: "same-origin",
       cache: "no-store",
@@ -404,31 +437,76 @@ import mockSources from "../mock/sources.json";
         return response.text();
       })
       .then(function (nonceToken) {
-        return fetch(SOURCES_UPDATER_URL, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-            "X-SquizMatrix-JSAPI-Key": SOURCES_JSAPI_KEY,
+        var trimmedToken = nonceToken.trim();
+        if (!trimmedToken) {
+          throw new Error("Nonce request returned an empty token");
+        }
+        return trimmedToken;
+      });
+  }
+
+  function callSourcesJsApi(operation, params, nonceToken) {
+    var body = params || {};
+    body.type = operation;
+    body.nonce_token = nonceToken;
+
+    return fetch(SOURCES_UPDATER_URL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-SquizMatrix-JSAPI-Key": SOURCES_JSAPI_KEY,
+      },
+      body: JSON.stringify(body),
+    }).then(function (response) {
+      return parseJsApiResponse(response, operation);
+    });
+  }
+
+  function publishSources(sources) {
+    var nonceToken = "";
+    var lockAcquired = false;
+    var writeError = null;
+
+    return getSourcesNonce()
+      .then(function (token) {
+        nonceToken = token;
+        return callSourcesJsApi(
+          "acquireLock",
+          {
+            id: SOURCES_ASSET_ID,
+            screen: "attributes",
+            dependants_only: 0,
+            force_acquire: 1,
           },
-          body: JSON.stringify({
-            type: "setSources",
-            sources: JSON.stringify(sortSourcesMap(sources), null, 2),
-            nonce_token: nonceToken,
-          }),
+          nonceToken,
+        );
+      })
+      .then(function () {
+        lockAcquired = true;
+        return callSourcesJsApi(
+          "setContentOfEditableFileAsset",
+          {
+            id: SOURCES_ASSET_ID,
+            content: JSON.stringify(sortSourcesMap(sources)),
+          },
+          nonceToken,
+        );
+      })
+      .catch(function (error) {
+        writeError = error;
+      })
+      .then(function () {
+        if (!lockAcquired) {
+          throw writeError;
+        }
+        return callSourcesJsApi(
+          "releaseLock",
+          { id: SOURCES_ASSET_ID, screen: "attributes" },
+          nonceToken,
+        ).then(function () {
+          if (writeError) throw writeError;
         });
-      })
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error("Sources update failed: " + response.status);
-        }
-        return response.json();
-      })
-      .then(function (result) {
-        if (!result || result.success === false) {
-          throw new Error((result && result.error) || "Sources update failed");
-        }
-        return result;
       });
   }
 
@@ -458,7 +536,7 @@ import mockSources from "../mock/sources.json";
    * @param {string} assetId  The Squiz Matrix asset ID (raw.assetassetid).
    * @returns {Promise<Array>}  Array of link objects.
    */
-  function fetchPageLinks(assetId) {
+  function fetchPageLinks(assetId, rootAssetId, stage) {
     if (isDev) {
       if (matrixMockCache) {
         return Promise.resolve(matrixMockCache[assetId] || []);
@@ -479,7 +557,14 @@ import mockSources from "../mock/sources.json";
       .then(function (data) {
         return Array.isArray(data) ? data : [];
       })
-      .catch(function () {
+      .catch(function (error) {
+        if (rootAssetId && shouldLogRecachePageLinks()) {
+          recacheResolutionFailures[rootAssetId] = {
+            stage: stage || "links",
+            relatedAssetId: assetId,
+            error: error.message,
+          };
+        }
         return [];
       });
   }
@@ -565,7 +650,9 @@ import mockSources from "../mock/sources.json";
     var promise = useLiveSources
       ? resolvePageLinksUncached(assetId).then(function (pageLinks) {
           if (shouldLogRecachePageLinks()) {
-            recachedSources[assetId] = pageLinks;
+            if (!recacheResolutionFailures[assetId]) {
+              recachedSources[assetId] = pageLinks;
+            }
           }
           return pageLinks;
         })
@@ -634,11 +721,19 @@ import mockSources from "../mock/sources.json";
         Object.keys(recachedSources).forEach(function (assetId) {
           mergedSources[assetId] = recachedSources[assetId];
         });
+        var failedAssetIds = Object.keys(recacheResolutionFailures);
+        if (failedAssetIds.length) {
+          console.warn(
+            "[DCDD] Retaining existing sources for failed recache assets",
+            recacheResolutionFailures,
+          );
+        }
         return publishSources(mergedSources);
       })
       .then(function () {
         console.log("[DCDD] Shared sources updated", {
           updatedAssets: Object.keys(recachedSources).length,
+          retainedAssets: Object.keys(recacheResolutionFailures).length,
         });
       })
       .catch(function (error) {
@@ -653,12 +748,12 @@ import mockSources from "../mock/sources.json";
    * @returns {Promise<Array<{name: string, path: string}>>}
    */
   function resolvePageLinksUncached(assetId) {
-    return fetchPageLinks(assetId).then(function (links) {
+    return fetchPageLinks(assetId, assetId, "document links").then(function (links) {
       var refIds = getPageMajorIds(links);
       if (!refIds.length) return [];
       return Promise.all(
         refIds.map(function (id) {
-          return fetchPageLinks(id).then(function (childLinks) {
+          return fetchPageLinks(id, assetId, "reference links").then(function (childLinks) {
             var hiddenIds = childLinks
               .filter(function (l) {
                 return l.link_type === "hidden";
@@ -680,7 +775,14 @@ import mockSources from "../mock/sources.json";
                       .then(function (asset) {
                         return { major_id: hid, asset: asset };
                       })
-                      .catch(function () {
+                      .catch(function (error) {
+                        if (shouldLogRecachePageLinks()) {
+                          recacheResolutionFailures[assetId] = {
+                            stage: "hidden asset",
+                            relatedAssetId: hid,
+                            error: error.message,
+                          };
+                        }
                         return { major_id: hid, asset: null };
                       });
                   }),
@@ -709,7 +811,14 @@ import mockSources from "../mock/sources.json";
                         .then(function (asset) {
                           return { major_id: parentId, asset: asset };
                         })
-                        .catch(function () {
+                        .catch(function (error) {
+                          if (shouldLogRecachePageLinks()) {
+                            recacheResolutionFailures[assetId] = {
+                              stage: "parent asset",
+                              relatedAssetId: parentId,
+                              error: error.message,
+                            };
+                          }
                           return { major_id: parentId, asset: null };
                         });
                     }),

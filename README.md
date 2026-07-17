@@ -223,7 +223,9 @@ Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.
 
 When the URL contains `/_nocache`, the resolver bypasses the shared files and fetches fresh links from the Matrix Management API for that page load without publishing them.
 
-When an authorized editor loads `/_recache`, each unique result asset is resolved live, merged into the existing Squiz source map, and sent in one update to Source updater asset `#979092`. Use an empty search for a complete rebuild. The updater request uses JSAPI key `1603940920` plus a nonce; the updater executes as `internal_content_api #508428`. A success logs `[DCDD] Shared sources updated`. A rejected or failed update logs `[DCDD] Shared sources update failed` while the freshly resolved links remain usable for that page load.
+When an authorized editor loads `/_recache`, each unique result asset is resolved live and merged into the existing Squiz source map. The updater acquires the `attributes` lock on asset `#979085`, calls `setContentOfEditableFileAsset`, then releases the lock. Use an empty search for a complete rebuild. Requests use JSAPI key `1603940920` plus a nonce; the updater executes as `internal_content_api #508428`. A success logs `[DCDD] Shared sources updated`. A rejected or failed write logs `[DCDD] Shared sources update failed` with the Squiz response body when available.
+
+If an individual live Management API lookup returns an error such as `403` or `404`, `/_recache` retains that asset's existing shared entry instead of replacing it with an empty array. The success log reports both `updatedAssets` and `retainedAssets`.
 
 Mock data is display-only. If neither Squiz source file can supply an authoritative merge base, `/_recache` aborts publication rather than writing bundled fixture data to asset `#979085`.
 

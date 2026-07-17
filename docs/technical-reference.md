@@ -739,6 +739,7 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 | `matrixMockCache`       | Object | Cached contents of `matrix-asset-links.json` (dev mode only); `null` until the first `fetchPageLinks()` call, then populated and reused for all subsequent calls on the same page load                                                                   |
 | `sharedSourcesPromise`  | Promise | One validated shared source-map load per page; identifies whether primary, fallback, or bundled mock data won                                                                                                                                        |
 | `recachedSources`       | Object | Fresh live results staged by asset ID during `/_recache` before one merged publication                                                                                                                                                                   |
+| `recacheResolutionFailures` | Object | Failed live resolution details keyed by root document asset ID; failed IDs retain their existing shared values during publication                                                                                                                    |
 | `recachePublished`      | Boolean | Prevents repeated updater requests during the same page lifecycle                                                                                                                                                                                        |
 
 **`data-ref` bindings** (attributes on elements inside `.search-template`, populated by `renderCardResults()`):
@@ -794,39 +795,44 @@ Table rows display the same Source behavior as card view: immediate `raw.sourcep
 - `mergeSourceLinks(immediateLinks, fetchedLinks)` — merges immediate and fetched links in stable order (immediate first), deduped by case-insensitive path.
 - `filterPageLinksByPrefix($container)` — host-gated DOM post-filter that runs only when `window.location.hostname === "internal.nt.gov.au"`. After links are rendered, it keeps anchors whose `href` base prefix matches the current page base prefix and always keeps links starting with `https://ntgcentral.nt.gov.au/`; it then rebuilds the container HTML from kept links to prevent orphan commas and returns the remaining-link count to callers.
 - `prefetchPageLinks(originalResults)` — returns a Promise for background resolution of every unique `raw.assetassetid`. This pre-warms the cache and gives `/_recache` one completion boundary before publication.
-- `publishRecachedSources(prefetchPromise)` — on `/_recache` only, merges staged live results into an authoritative Squiz map and issues one updater request. It refuses to publish when only bundled mock data loaded.
+- `publishRecachedSources(prefetchPromise)` — on `/_recache` only, merges successful live results into an authoritative Squiz map, retains existing values for failed resolutions, and invokes the lock/write/unlock publisher once. It refuses to publish when only bundled mock data loaded.
 
 #### Squiz shared sources configuration
 
 | Component | Asset / value | Purpose |
 | --- | --- | --- |
 | Primary source file | File asset `#979085` — `https://internal.nt.gov.au/__data/assets/file/0011/979085/sources.json` | Authoritative `{assetId: [{name, path}]}` map used by normal production visits |
-| Source updater | Asset `#979092` — `https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js` | Nonce-protected JSAPI endpoint that replaces primary file contents during `/_recache` |
+| Source updater | Asset `#979092` — `https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js` | Nonce-protected JSAPI endpoint used for lock, editable-file update, and unlock operations during `/_recache` |
 | Fallback source file | File asset `#979093` — `https://internal.nt.gov.au/__data/assets/file/0010/979093/sources-fallback.json` | Read-only rollback copy used when the primary file fails |
 | Bundled fallback | `src/mock/sources.json` | Final read fallback and local fixture; never an automatic publication base |
 | JSAPI key | `1603940920` | Browser-visible client key sent as `X-SquizMatrix-JSAPI-Key`; not sufficient authorization by itself |
+| Write target | `SOURCES_ASSET_ID = "979085"` | Fixed client-side asset ID sent to all three JSAPI operations; the updater configuration should allow writes only to this asset |
 | Execution identity | `internal_content_api #508428` | Service account granted write permission to `#979085`; updater runs the file operation as this account |
 
-The updater contract expected by `coveo-search.js` is:
+The updater contract used by `coveo-search.js` follows the standard Squiz editable-file JSAPI sequence:
 
-1. `GET source-updater.js?SQ_ACTION=getToken` returns the nonce as plain text.
-2. `POST source-updater.js` sends `application/json`, the JSAPI key header, and `{ "type": "setSources", "sources": "<pretty-printed JSON string>", "nonce_token": "..." }`.
-3. The Squiz endpoint must hard-code target asset `#979085`, parse and validate the source-map schema, and return JSON such as `{ "success": true }` or `{ "success": false, "error": "..." }`.
-4. The endpoint must independently require an authorized editor caller and validate the nonce/origin. The public JSAPI key and the service account's write permission must not allow an ordinary authenticated user to trigger an update.
+1. Use `#token` when present; otherwise `GET source-updater.js?SQ_ACTION=getToken` returns the nonce as plain text.
+2. `POST` `acquireLock` with `id: "979085"`, `screen: "attributes"`, `dependants_only: 0`, and `force_acquire: 1`.
+3. `POST` `setContentOfEditableFileAsset` with `id: "979085"` and compact stringified source-map JSON in `content`.
+4. `POST` `releaseLock` with `id: "979085"` and `screen: "attributes"`, including after a failed content write when the lock was acquired.
+5. Every POST sends `application/json`, `X-SquizMatrix-JSAPI-Key: 1603940920`, and `nonce_token`. HTTP failures include up to 500 characters of the response body in the console error.
+6. The endpoint must require an authorized editor caller and validate the nonce/origin. The public JSAPI key and the service account's write permission must not allow an ordinary authenticated user to trigger an update.
 
 Normal read fallback order is `#979085` → `#979093` → bundled `src/mock/sources.json`. Each map must be an object with numeric asset-ID keys. Every value must be an array of objects containing string `name` and `path` fields. A missing key means no cached sources; an explicit empty array is valid and records that the asset has no resolved sources.
 
-`/_nocache` bypasses all shared maps and resolves live without writing. `/_recache` resolves each unique result ID live, loads the primary or Squiz fallback map as a merge base, overlays fresh entries (including empty arrays), sorts numeric keys, and sends exactly one updater request. Use the base search page with no `searchterm` for a complete rebuild. If both Squiz maps fail, live links still render but publication is aborted to prevent fixture data from replacing the shared file.
+`/_nocache` bypasses all shared maps and resolves live without writing. `/_recache` resolves each unique result ID live, loads the primary or Squiz fallback map as a merge base, overlays successful fresh entries (including legitimate empty arrays), sorts numeric keys, and runs the lock/write/unlock sequence. Use the base search page with no `searchterm` for a complete rebuild. If a live lookup fails, its existing shared entry is retained and the console reports `retainedAssets`; this prevents a `403` or `404` from being persisted as an empty source list. If both Squiz maps fail, live links still render but publication is aborted to prevent fixture data from replacing the shared file.
 
 | Symptom | Check |
 | --- | --- |
 | Primary JSON is invalid or unavailable | Confirm fallback `#979093` loads; the console logs `Primary sources unavailable` |
 | Both Squiz files fail | Bundled mock data should render with a warning; `/_recache` must not POST it |
+| Management API source lookup returns 403/404 | Confirm bearer-token access to the reported asset. Recache retains that asset's existing shared value and continues with successful IDs |
 | Updater returns 401/403 | Confirm the current caller is an authorized editor, key `1603940920` is scoped to `#979092`, and nonce validation succeeds |
 | Updater reports a file permission error | Confirm `internal_content_api #508428` retains write permission on `#979085` |
 | Nonce request fails | Confirm `?SQ_ACTION=getToken` is enabled on `#979092` and the request carries the authenticated same-origin session |
 | Update succeeds but reads stay stale | Check Squiz/File asset cache invalidation and test the primary URL directly with browser caching disabled |
-| `setSources` is unknown | Add/enable that operation on `#979092`; the published wrapper originally exposed transport helpers but no domain method |
+| `setContentOfEditableFileAsset` fails | Confirm `#979085` is an Editable File asset, the `attributes` lock was acquired, and inspect the response body now included in the console error |
+| Asset remains locked | Check the `releaseLock` response and release the `attributes` lock in Matrix if the request failed |
 | Repeated updater requests occur | Confirm `recachePublished` remains page-scoped and publication is called only from the initial search prefetch |
 
 **`data-topic` attribute:** Both card `<li>` elements (`renderCardResults()`) and table `<tr>` elements (`renderTableResults()`) carry a `data-topic` attribute containing `raw.topic` (empty string when absent). No visual display — this is a hidden data marker for DOM-level querying consistent with topic filter values.
