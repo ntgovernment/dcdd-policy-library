@@ -32,5 +32,133 @@
       "name": "Corporate manual",
       "path": "internal.nt.gov.au/treasury/support-resources/corporate-manual"
     }
+  ],
+  "455694": [
+    {
+      "name": "Accounting and property manual",
+      "path": "internal.nt.gov.au/dcdd/support-resources/accounting-property-manual"
+    }
+  ],
+  "456219": [
+    {
+      "name": "Risk management",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/risk-management"
+    }
+  ],
+  "456221": [
+    {
+      "name": "Risk management",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/risk-management"
+    }
+  ],
+  "456230": [
+    {
+      "name": "Gifts and benefits",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/gifts-benefits"
+    }
+  ],
+  "456231": [
+    {
+      "name": "Gifts and benefits",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/gifts-benefits"
+    },
+    {
+      "name": "Gifts and benefits - attending social events",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/gifts-benefits/gifts-and-benefits-attending-social-events"
+    }
+  ],
+  "456279": [
+    {
+      "name": "WHS management framework",
+      "path": "internal.nt.gov.au/dcdd/work-health-safety/whs-management-framework"
+    }
+  ],
+  "456393": [],
+  "457388": [
+    {
+      "name": "Data breaches",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/data-breaches"
+    }
+  ],
+  "457389": [
+    {
+      "name": "Data breaches",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/data-breaches"
+    }
+  ],
+  "457390": [
+    {
+      "name": "Data breaches",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/data-breaches"
+    }
+  ],
+  "457643": [
+    {
+      "name": "Improper conduct",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/improper-conduct"
+    },
+    {
+      "name": "Fraud and corruption",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/report-fraud-corruption"
+    }
+  ],
+  "477371": [
+    {
+      "name": "Complaints management",
+      "path": "internal.nt.gov.au/dcdd/about-us/complaints-management-in-dcdd"
+    }
+  ],
+  "608665": [
+    {
+      "name": "Fraud and corruption",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/report-fraud-corruption"
+    }
+  ],
+  "608668": [
+    {
+      "name": "Fraud and corruption",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/report-fraud-corruption"
+    }
+  ],
+  "809468": [],
+  "920878": [
+    {
+      "name": "Gifts and benefits",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/gifts-benefits"
+    }
+  ],
+  "935812": [
+    {
+      "name": "WHS induction",
+      "path": "internal.nt.gov.au/dcdd/work-health-safety/training/whs-induction"
+    },
+    {
+      "name": "Prepare to welcome new employees",
+      "path": "internal.nt.gov.au/dcdd/support-resources/welcome-new-employees"
+    }
+  ],
+  "935816": [
+    {
+      "name": "Prepare to welcome new employees",
+      "path": "internal.nt.gov.au/dcdd/support-resources/welcome-new-employees"
+    }
+  ],
+  "935817": [
+    {
+      "name": "Prepare to welcome new employees",
+      "path": "internal.nt.gov.au/dcdd/support-resources/welcome-new-employees"
+    }
+  ],
+  "961220": [
+    {
+      "name": "Recruitment policy and guidelines",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/recruitment-policy-guidelines"
+    }
+  ],
+  "961221": [
+    {
+      "name": "Recruitment policy and guidelines",
+      "path": "internal.nt.gov.au/dcdd/support-resources/corporate-governance/recruitment-policy-guidelines"
+    }
   ]
 }

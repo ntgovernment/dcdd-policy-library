@@ -205,21 +205,18 @@ File metadata is displayed as `TYPE (SIZE)`, for example `DOCX (615.5 KB)` or `P
 
 Resolved source links are shared through Squiz rather than stored in each user's browser:
 
-- Normal production visits load `sources.json` from Squiz File asset `#979085` once per page load.
+- Normal production visits load `sources.json` from Squiz Text File asset `#979085` at `https://internal.nt.gov.au/__data/assets/text_file/0011/979085/sources.json` once per page load.
 - If the primary file is unavailable or invalid, the script tries fallback asset `#979093`, then the read-only mock bundled from `src/mock/sources.json`.
 - `pageLinksCache` memoizes resolved Promises for the current search so repeated card/table renders do not repeat work.
 - Old `dcdd-page-links:*` localStorage values are ignored and can remain in users' browsers; no migration is required.
 
-Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.js`:
+Source links are populated in `src/js/coveo-search.js` as follows:
 
 - If a result includes both `raw.sourcepage` and `raw.sourceurl`, that source link is rendered immediately in the Source field (card and table) before async Matrix page-link resolution completes.
 - When async Matrix page links resolve, they are merged with the immediate source link(s) (immediate first, deduped by URL path).
-- On `internal.nt.gov.au` pages, page links are rendered first, then non-matching links are hidden in the DOM when their base prefix differs from the current page base prefix.
-- Links whose URL starts with `https://ntgcentral.nt.gov.au/` are always kept (not hidden by prefix filtering).
-- Base prefix means: `scheme + host + first path segment` (example: `https://internal.nt.gov.au/dcdd`).
-- Existing path exclusions still apply (`/news/`, `/dev/`, and `archive`).
-- On local/dev hosts (`localhost`, `127.0.0.1`, `*.github.io`), this prefix filter is not enforced.
-- The rendered Sources markup is rebuilt from the remaining links so commas/separators stay correct; if no links remain in card view, the entire Sources row is hidden.
+- Every valid shared source entry for the result's `raw.assetassetid` is rendered, including links to other agency sections and `ntgcentral.nt.gov.au`.
+- The `/news/`, `/dev/`, and `archive` exclusions apply only while generating fresh entries through the live `/_nocache` or `/_recache` resolver; normal rendering does not remove valid entries already stored in `sources.json`.
+- If the complete merged source list is empty in card view, the entire Sources row is hidden.
 
 When the URL contains `/_nocache`, the resolver bypasses the shared files and fetches fresh links from the Matrix Management API for that page load without publishing them.
 
@@ -227,7 +224,7 @@ When an authorized editor loads `/_recache`, each unique result asset is resolve
 
 If an individual live Management API lookup returns an error such as `403` or `404`, `/_recache` retains that asset's existing shared entry instead of replacing it with an empty array. The success log reports both `updatedAssets` and `retainedAssets`.
 
-Mock data is display-only. If neither Squiz source file can supply an authoritative merge base, `/_recache` aborts publication rather than writing bundled fixture data to asset `#979085`.
+The bundled `src/mock/sources.json` fixture mirrors the complete authoritative source map for local display and final read fallback, including explicit empty arrays. Mock data is display-only. If neither Squiz source file can supply an authoritative merge base, `/_recache` aborts publication rather than writing bundled fixture data to asset `#979085`.
 
 ## Build commands
 

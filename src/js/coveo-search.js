@@ -246,39 +246,6 @@ import mockSources from "../mock/sources.json";
     ["localhost", "127.0.0.1"].includes(window.location.hostname) ||
     window.location.hostname.endsWith(".github.io");
 
-  function shouldEnforcePageLinkPrefixFilter() {
-    return window.location.hostname === "internal.nt.gov.au";
-  }
-
-  // Base prefix = protocol + host + first path segment, e.g.
-  // https://internal.nt.gov.au/dcdd
-  function getBasePrefixFromUrlLike(urlLike) {
-    if (!urlLike) return "";
-    try {
-      var parsed = new URL(urlLike, window.location.origin);
-      var firstSegment = parsed.pathname.split("/").filter(Boolean)[0];
-      return (
-        parsed.protocol +
-        "//" +
-        parsed.host +
-        (firstSegment ? "/" + firstSegment : "")
-      ).toLowerCase();
-    } catch (e) {
-      return "";
-    }
-  }
-
-  function getCurrentPageBasePrefix() {
-    return getBasePrefixFromUrlLike(window.location.href);
-  }
-
-  function doesPageLinkMatchCurrentBasePrefix(path) {
-    var currentPrefix = getCurrentPageBasePrefix();
-    var linkPrefix = getBasePrefixFromUrlLike(path);
-    if (!currentPrefix || !linkPrefix) return false;
-    return currentPrefix === linkPrefix;
-  }
-
   function shouldBypassSharedSources() {
     return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
   }
@@ -298,7 +265,7 @@ import mockSources from "../mock/sources.json";
   var matrixMockCache = null;
 
   var SOURCES_PRIMARY_URL =
-    "https://internal.nt.gov.au/__data/assets/file/0011/979085/sources.json";
+    "https://internal.nt.gov.au/__data/assets/text_file/0011/979085/sources.json";
   var SOURCES_FALLBACK_URL =
     "https://internal.nt.gov.au/__data/assets/file/0010/979093/sources-fallback.json";
   var SOURCES_UPDATER_URL =
@@ -929,54 +896,6 @@ import mockSources from "../mock/sources.json";
     (immediateLinks || []).forEach(pushUnique);
     (fetchedLinks || []).forEach(pushUnique);
     return out;
-  }
-
-  /**
-   * Filters rendered page-link <a> elements in a container and rewrites the
-   * container HTML using only kept links so separator commas stay correct.
-   * @param {jQuery} $container  jQuery element containing <a> links to filter
-   * @returns {number}  Count of links remaining after filtering.
-   */
-  function filterPageLinksByPrefix($container) {
-    var $links = $container.find("a");
-    if (!$links.length) return 0;
-    var ntgcentralPrefix = "https://ntgcentral.nt.gov.au/";
-
-    if (!shouldEnforcePageLinkPrefixFilter()) {
-      return $links.length;
-    }
-
-    var currentPrefix = getCurrentPageBasePrefix();
-    if (!currentPrefix) {
-      return $links.length;
-    }
-
-    var kept = [];
-    $links.each(function () {
-      var href = $(this).attr("href");
-      if (!href) return;
-      if (href.toLowerCase().indexOf(ntgcentralPrefix) === 0) {
-        kept.push(this);
-        return;
-      }
-      var linkPrefix = getBasePrefixFromUrlLike(href);
-      if (linkPrefix === currentPrefix) {
-        kept.push(this);
-      }
-    });
-
-    if (!kept.length) {
-      $container.empty();
-      return 0;
-    }
-
-    var html = kept
-      .map(function (link) {
-        return $("<div>").append($(link).clone()).html();
-      })
-      .join(", ");
-    $container.html(html);
-    return kept.length;
   }
 
   /**
@@ -1931,14 +1850,9 @@ import mockSources from "../mock/sources.json";
 
           if (immediateSourceLinks.length) {
             $pageIds.html(renderPageLinksHtml(immediateSourceLinks, fileMeta));
-            var initialCount = filterPageLinksByPrefix($pageIds);
-            if (!initialCount && !assetAssetId) {
-              $pageRow.attr("hidden", true);
-              return;
-            }
             $card
               .find('[data-ref="search-result-page-label"]')
-              .text(initialCount > 1 ? "Sources:" : "Source:");
+              .text(immediateSourceLinks.length > 1 ? "Sources:" : "Source:");
           } else {
             $pageIds.text("Loading\u2026");
           }
@@ -1954,14 +1868,9 @@ import mockSources from "../mock/sources.json";
               return;
             }
             $pageIds.html(renderPageLinksHtml(mergedLinks, fileMeta));
-            var visibleCount = filterPageLinksByPrefix($pageIds);
-            if (!visibleCount) {
-              $pageRow.attr("hidden", true);
-              return;
-            }
             $card
               .find('[data-ref="search-result-page-label"]')
-              .text(visibleCount > 1 ? "Sources:" : "Source:");
+              .text(mergedLinks.length > 1 ? "Sources:" : "Source:");
           });
         })($item);
       }
@@ -2065,7 +1974,6 @@ import mockSources from "../mock/sources.json";
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
             var mergedLinks = mergeSourceLinks(immediateSourceLinks, pageLinks);
             $cell.html(renderPageLinksHtml(mergedLinks, fileMeta));
-            filterPageLinksByPrefix($cell);
           });
         })($row.find(".doc-search-table__col-pages"), fileMeta);
       }

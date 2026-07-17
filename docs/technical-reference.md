@@ -767,7 +767,14 @@ Each search result card displays a "Source:" or "Sources:" row. If the result co
 
 Table rows display the same Source behavior as card view: immediate `raw.sourcepage`/`raw.sourceurl` (when present), followed by merged async links from the shared Squiz source map on normal visits. Live Matrix Management API resolution is used only for `/_nocache` and `/_recache`.
 
-**Shared resolution chain** (both card and table views use `resolvePageLinks(assetId)` and `renderPageLinksHtml(pageLinks)`):
+**Normal shared-map read** (both card and table views use `resolvePageLinks(assetId)` and `renderPageLinksHtml(pageLinks)`):
+
+1. Load and validate the authoritative Text File asset `#979085` once per page load.
+2. Look up the exact `raw.assetassetid` key; a missing key or explicit empty array produces no shared links.
+3. Merge every stored entry with any immediate Coveo source link, preserving order and deduplicating by case-insensitive URL path.
+4. Render every valid merged entry, including links to other agency path prefixes and `ntgcentral.nt.gov.au`.
+
+**Live resolution chain** (`/_nocache` and `/_recache` only):
 
 1. `fetchPageLinks(assetId)` — fetch upstream links for the document asset
 2. Filter for `link_type === "reference"` → collect `major_id` values
@@ -777,15 +784,16 @@ Table rows display the same Source behavior as card view: immediate `raw.sourcep
 6. Extract `attributes.short_name` (falling back to `attributes.name`) and `urls[0].path` from the parent asset
 7. Filter out pages whose URL path contains "/news/", "/dev/", or "archive" (case-insensitive)
 8. Render as comma-separated `<a>` links, deduplicated by URL path
-9. On `internal.nt.gov.au` pages, apply a base-prefix visibility rule in the rendered DOM: keep only `<a>` links whose base prefix matches the current page base prefix (`scheme + host + first path segment`, e.g. `https://internal.nt.gov.au/dcdd`), while always keeping links that start with `https://ntgcentral.nt.gov.au/`, then rebuild the comma-separated HTML from kept links.
 
-**Card view** — The source row is hidden when: neither immediate source fields nor `assetassetid` are present, merged links are empty, or post-render prefix filtering removes all links. The label is updated to "Source:" vs "Sources:" based on the number of links remaining after filtering.
+The live path exclusions affect newly resolved data only. Normal shared-map rendering does not reapply them or remove valid entries already present in `sources.json`.
+
+**Card view** — The source row is hidden when neither immediate source fields nor `assetassetid` are present, or when the complete merged link list is empty. The label is updated to "Source:" vs "Sources:" based on the merged-link count.
 
 **Table view** — The Source cell initially shows immediate source links when available; otherwise it shows "Loading…" when `raw.assetassetid` is present. After async resolution, the merged link HTML is rendered (or left empty when no links remain). The page-link results are memoized per query and pre-fetched in the background for the full result set, so switching between card/table view, pagination, sorting, or filtering does not re-fetch the same data.
 
 **API authentication:** All Matrix Management API calls use Bearer token `eeaa62869ea5c7e751446454327cf135` via `matrixApiFetch()`.
 
-**Dev/mock mode:** When `isDev` is true (localhost, 127.0.0.1, or \*.github.io), normal source rendering uses `src/mock/sources.json`, imported into the Vite bundle. `src/mock/matrix-asset-links.json` remains available to the low-level resolver for diagnostic development of the live relationship chain.
+**Dev/mock mode:** When `isDev` is true (localhost, 127.0.0.1, or \*.github.io), normal source rendering uses `src/mock/sources.json`, imported into the Vite bundle. This fixture mirrors the complete authoritative map, including explicit empty arrays. `src/mock/matrix-asset-links.json` remains available to the low-level resolver for diagnostic development of the live relationship chain.
 
 **Shared helper functions:**
 
@@ -793,7 +801,6 @@ Table rows display the same Source behavior as card view: immediate `raw.sourcep
 - `renderPageLinksHtml(pageLinks)` — returns comma-separated HTML `<a>` string (or empty string when input is empty). Supports absolute and relative path-like values and appends text fragments when file metadata is provided. Uses jQuery for HTML escaping to prevent XSS. Called by both render functions.
 - `getImmediateSourceLinks(raw)` — returns an initial source-link array from `raw.sourcepage` + `raw.sourceurl` when both are present.
 - `mergeSourceLinks(immediateLinks, fetchedLinks)` — merges immediate and fetched links in stable order (immediate first), deduped by case-insensitive path.
-- `filterPageLinksByPrefix($container)` — host-gated DOM post-filter that runs only when `window.location.hostname === "internal.nt.gov.au"`. After links are rendered, it keeps anchors whose `href` base prefix matches the current page base prefix and always keeps links starting with `https://ntgcentral.nt.gov.au/`; it then rebuilds the container HTML from kept links to prevent orphan commas and returns the remaining-link count to callers.
 - `prefetchPageLinks(originalResults)` — returns a Promise for background resolution of every unique `raw.assetassetid`. This pre-warms the cache and gives `/_recache` one completion boundary before publication.
 - `publishRecachedSources(prefetchPromise)` — on `/_recache` only, merges successful live results into an authoritative Squiz map, retains existing values for failed resolutions, and invokes the lock/write/unlock publisher once. It refuses to publish when only bundled mock data loaded.
 
@@ -801,7 +808,7 @@ Table rows display the same Source behavior as card view: immediate `raw.sourcep
 
 | Component | Asset / value | Purpose |
 | --- | --- | --- |
-| Primary source file | File asset `#979085` — `https://internal.nt.gov.au/__data/assets/file/0011/979085/sources.json` | Authoritative `{assetId: [{name, path}]}` map used by normal production visits |
+| Primary source file | Text File asset `#979085` — `https://internal.nt.gov.au/__data/assets/text_file/0011/979085/sources.json` | Authoritative `{assetId: [{name, path}]}` map used by normal production visits |
 | Source updater | Asset `#979092` — `https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js` | Nonce-protected JSAPI endpoint used for lock, editable-file update, and unlock operations during `/_recache` |
 | Fallback source file | File asset `#979093` — `https://internal.nt.gov.au/__data/assets/file/0010/979093/sources-fallback.json` | Read-only rollback copy used when the primary file fails |
 | Bundled fallback | `src/mock/sources.json` | Final read fallback and local fixture; never an automatic publication base |
