@@ -1,3 +1,5 @@
+import mockSources from "../mock/sources.json";
+
 /**
  * coveo-search.js — DCDD Document Search: Coveo REST API integration
  *
@@ -277,7 +279,7 @@
     return currentPrefix === linkPrefix;
   }
 
-  function shouldBypassPageLinksStorage() {
+  function shouldBypassSharedSources() {
     return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
   }
 
@@ -295,6 +297,17 @@
   var MATRIX_MOCK_URL = "./src/mock/matrix-asset-links.json";
   var matrixMockCache = null;
 
+  var SOURCES_PRIMARY_URL =
+    "https://internal.nt.gov.au/__data/assets/file/0011/979085/sources.json";
+  var SOURCES_FALLBACK_URL =
+    "https://internal.nt.gov.au/__data/assets/file/0010/979093/sources-fallback.json";
+  var SOURCES_UPDATER_URL =
+    "https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js";
+  var SOURCES_JSAPI_KEY = "1603940920";
+  var sharedSourcesPromise = null;
+  var recachedSources = {};
+  var recachePublished = false;
+
   // Per-page-load cache of resolved page-link Promises, keyed by assetId.
   // Both card and table renders call resolvePageLinks(assetId), which returns
   // the cached Promise on subsequent calls — so pagination, sorting, filtering,
@@ -302,45 +315,121 @@
   // Cleared at the start of every runSearch() to avoid stale data across queries.
   var pageLinksCache = {};
 
-  // localStorage key prefix for persisting resolved page-link arrays across
-  // page loads. Each value is a JSON-stringified Array<{name, path}>.
-  var PAGE_LINKS_STORAGE_PREFIX = "dcdd-page-links:";
-
-  /**
-   * Reads a previously resolved page-link array for an assetId from
-   * localStorage. Returns null when no entry exists, when localStorage is
-   * unavailable (e.g. private browsing), or when the stored value is invalid.
-   * @param {string} assetId
-   * @returns {Array<{name: string, path: string}>|null}
-   */
-  function loadPageLinksFromStorage(assetId) {
-    try {
-      var raw = window.localStorage.getItem(
-        PAGE_LINKS_STORAGE_PREFIX + assetId,
-      );
-      if (raw == null) return null;
-      var parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : null;
-    } catch (e) {
-      return null;
+  function validateSourcesMap(data) {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("Sources data must be an object");
     }
+
+    Object.keys(data).forEach(function (assetId) {
+      if (!/^\d+$/.test(assetId) || !Array.isArray(data[assetId])) {
+        throw new Error("Invalid sources entry for asset " + assetId);
+      }
+      data[assetId].forEach(function (source) {
+        if (
+          !source ||
+          typeof source !== "object" ||
+          typeof source.name !== "string" ||
+          typeof source.path !== "string"
+        ) {
+          throw new Error("Invalid source link for asset " + assetId);
+        }
+      });
+    });
+
+    return data;
   }
 
-  /**
-   * Persists a resolved page-link array for an assetId to localStorage.
-   * Silently no-ops when localStorage is unavailable or the quota is exceeded.
-   * @param {string} assetId
-   * @param {Array<{name: string, path: string}>} pageLinks
-   */
-  function savePageLinksToStorage(assetId, pageLinks) {
-    try {
-      window.localStorage.setItem(
-        PAGE_LINKS_STORAGE_PREFIX + assetId,
-        JSON.stringify(pageLinks),
-      );
-    } catch (e) {
-      /* localStorage disabled or full — skip persistence */
+  function fetchSourcesMap(url, sourceName) {
+    return fetch(url, { cache: "no-store" }).then(function (response) {
+      if (!response.ok) {
+        throw new Error(sourceName + " request failed: " + response.status);
+      }
+      return response.json().then(function (data) {
+        return { data: validateSourcesMap(data), source: sourceName };
+      });
+    });
+  }
+
+  function loadSharedSources() {
+    if (sharedSourcesPromise) return sharedSourcesPromise;
+
+    if (isDev) {
+      sharedSourcesPromise = Promise.resolve({
+        data: validateSourcesMap(mockSources),
+        source: "mock",
+      });
+      return sharedSourcesPromise;
     }
+
+    sharedSourcesPromise = fetchSourcesMap(SOURCES_PRIMARY_URL, "primary")
+      .catch(function (primaryError) {
+        console.warn("[DCDD] Primary sources unavailable", primaryError);
+        return fetchSourcesMap(SOURCES_FALLBACK_URL, "fallback");
+      })
+      .catch(function (fallbackError) {
+        console.warn(
+          "[DCDD] Squiz sources unavailable; using bundled mock data",
+          fallbackError,
+        );
+        return {
+          data: validateSourcesMap(mockSources),
+          source: "mock",
+        };
+      });
+
+    return sharedSourcesPromise;
+  }
+
+  function sortSourcesMap(sources) {
+    var sorted = {};
+    Object.keys(sources)
+      .sort(function (a, b) {
+        return Number(a) - Number(b);
+      })
+      .forEach(function (assetId) {
+        sorted[assetId] = sources[assetId];
+      });
+    return sorted;
+  }
+
+  function publishSources(sources) {
+    return fetch(SOURCES_UPDATER_URL + "?SQ_ACTION=getToken", {
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Nonce request failed: " + response.status);
+        }
+        return response.text();
+      })
+      .then(function (nonceToken) {
+        return fetch(SOURCES_UPDATER_URL, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-SquizMatrix-JSAPI-Key": SOURCES_JSAPI_KEY,
+          },
+          body: JSON.stringify({
+            type: "setSources",
+            sources: JSON.stringify(sortSourcesMap(sources), null, 2),
+            nonce_token: nonceToken,
+          }),
+        });
+      })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Sources update failed: " + response.status);
+        }
+        return response.json();
+      })
+      .then(function (result) {
+        if (!result || result.success === false) {
+          throw new Error((result && result.error) || "Sources update failed");
+        }
+        return result;
+      });
   }
 
   /**
@@ -471,30 +560,32 @@
   function resolvePageLinks(assetId) {
     if (!assetId) return Promise.resolve([]);
     if (pageLinksCache[assetId]) return pageLinksCache[assetId];
-    var bypassStorage = shouldBypassPageLinksStorage();
+    var useLiveSources = shouldBypassSharedSources() && !isDev;
 
-    // localStorage hit (production only — in dev the static mock JSON is
-    // already cached in memory by fetchPageLinks(), so persisting it adds
-    // no benefit and would clutter the developer's storage).
-    if (!isDev && !bypassStorage) {
-      var stored = loadPageLinksFromStorage(assetId);
-      if (stored) {
-        var resolvedPromise = Promise.resolve(stored);
-        pageLinksCache[assetId] = resolvedPromise;
-        return resolvedPromise;
-      }
-    }
+    var promise = useLiveSources
+      ? resolvePageLinksUncached(assetId).then(function (pageLinks) {
+          if (shouldLogRecachePageLinks()) {
+            recachedSources[assetId] = pageLinks;
+          }
+          return pageLinks;
+        })
+      : loadSharedSources().then(function (sourcesState) {
+          return Object.prototype.hasOwnProperty.call(
+            sourcesState.data,
+            assetId,
+          )
+            ? sourcesState.data[assetId]
+            : [];
+        });
 
-    var promise = resolvePageLinksUncached(assetId).then(function (pageLinks) {
-      if (shouldLogRecachePageLinks()) {
+    if (shouldLogRecachePageLinks()) {
+      promise.then(function (pageLinks) {
         console.log("[DCDD] /_recache page-links first-pass", {
           assetId: assetId,
           pageLinks: pageLinks,
         });
-      }
-      if (!isDev && !bypassStorage) savePageLinksToStorage(assetId, pageLinks);
-      return pageLinks;
-    });
+      });
+    }
     pageLinksCache[assetId] = promise;
     return promise;
   }
@@ -510,14 +601,49 @@
    * @param {Array} results  Coveo result objects (e.g. originalResults).
    */
   function prefetchPageLinks(results) {
-    if (!Array.isArray(results)) return;
+    if (!Array.isArray(results)) return Promise.resolve([]);
+    var promises = [];
+    var seen = {};
     results.forEach(function (r) {
       var id = (r.raw || {}).assetassetid;
-      if (id && !pageLinksCache[id]) {
-        // Fire and forget — the call populates the cache via resolvePageLinks().
-        resolvePageLinks(id);
+      if (id && !seen[id]) {
+        seen[id] = true;
+        promises.push(resolvePageLinks(id));
       }
     });
+    return Promise.all(promises);
+  }
+
+  function publishRecachedSources(prefetchPromise) {
+    if (!shouldLogRecachePageLinks() || isDev || recachePublished) return;
+    recachePublished = true;
+
+    Promise.all([loadSharedSources(), prefetchPromise])
+      .then(function (values) {
+        var sourcesState = values[0];
+        if (sourcesState.source === "mock") {
+          throw new Error(
+            "Shared Squiz sources are unavailable; mock data will not be published",
+          );
+        }
+
+        var mergedSources = {};
+        Object.keys(sourcesState.data).forEach(function (assetId) {
+          mergedSources[assetId] = sourcesState.data[assetId];
+        });
+        Object.keys(recachedSources).forEach(function (assetId) {
+          mergedSources[assetId] = recachedSources[assetId];
+        });
+        return publishSources(mergedSources);
+      })
+      .then(function () {
+        console.log("[DCDD] Shared sources updated", {
+          updatedAssets: Object.keys(recachedSources).length,
+        });
+      })
+      .catch(function (error) {
+        console.error("[DCDD] Shared sources update failed", error);
+      });
   }
 
   /**
@@ -2280,7 +2406,8 @@
         // Pre-warm the page-links cache in parallel for every result so card
         // and table renders never block on a fetch and pagination/sort/filter/
         // view-switching can read from cache instantly.
-        prefetchPageLinks(originalResults);
+        var pageLinksPrefetch = prefetchPageLinks(originalResults);
+        publishRecachedSources(pageLinksPrefetch);
 
         applySort();
 

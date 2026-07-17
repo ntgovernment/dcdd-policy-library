@@ -354,7 +354,8 @@ document-library/
 │   │   └── status-toolbar.css                # Dev/test status toolbar styles — loaded by Matrix, NOT bundled
 │   ├── mock/
 │   │   ├── coveo-search-rest-api-query.json  # 43-result Coveo API snapshot for local dev
-│   │   └── matrix-asset-links.json           # Mock upstream page-link responses keyed by assetId for local dev
+│   │   ├── matrix-asset-links.json           # Mock raw Matrix relationship responses for live resolver testing
+│   │   └── sources.json                      # Resolved source map bundled into the search script as final read fallback
 │   └── vendor/                               ← Third-party locked dependencies — do not edit
 │       ├── js/
 │       │   ├── jquery-3.4.1.min.js           # jQuery 3.4.1 (loaded by Matrix paint layout before this bundle)
@@ -434,7 +435,8 @@ document-library/
 | Add a file to the search bundle                            | Add `import './...'` to `src/search-page.js`          | `npm run build` → commit src+dist    |
 | Add a file to the collection bundle                        | Add `import './...'` to `src/collection-page.js`      | `npm run build` → commit src+dist    |
 | Change mock data for local testing                         | `src/mock/coveo-search-rest-api-query.json`           | No build needed (fetched at runtime) |
-| Change mock page-link data for local testing               | `src/mock/matrix-asset-links.json`                    | No build needed (fetched at runtime) |
+| Change resolved source data for local testing              | `src/mock/sources.json`                               | Yes — imported into the search bundle |
+| Change raw Matrix relationship fixtures                   | `src/mock/matrix-asset-links.json`                    | No build needed when exercising the low-level dev resolver |
 | Update GitHub Pages static page generation                 | `scripts/generate-collection-pages.js`                | `npm run build` → commit             |
 | Update GitHub Actions deployment workflow                  | `.github/workflows/deploy.yml`                        | Commit; triggers on push to main     |
 | Upgrade a vendor library                                   | Replace in `src/vendor/`; update Matrix page template | `npm run build` → commit             |
@@ -735,6 +737,9 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 | `currentSort`           | String | Active sort — `"relevancy"` \| `"date descending"` \| `"alpha ascending"` \| `"alpha descending"`                                                                                                                                                        |
 | `currentQuery`          | String | Last query string passed to `runSearch()`                                                                                                                                                                                                                |
 | `matrixMockCache`       | Object | Cached contents of `matrix-asset-links.json` (dev mode only); `null` until the first `fetchPageLinks()` call, then populated and reused for all subsequent calls on the same page load                                                                   |
+| `sharedSourcesPromise`  | Promise | One validated shared source-map load per page; identifies whether primary, fallback, or bundled mock data won                                                                                                                                        |
+| `recachedSources`       | Object | Fresh live results staged by asset ID during `/_recache` before one merged publication                                                                                                                                                                   |
+| `recachePublished`      | Boolean | Prevents repeated updater requests during the same page lifecycle                                                                                                                                                                                        |
 
 **`data-ref` bindings** (attributes on elements inside `.search-template`, populated by `renderCardResults()`):
 
@@ -753,13 +758,13 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 | `search-result-page-label`      | `<span>` containing `Source:` (singular) or `Sources:` (plural) — JS changes text to `Sources:` when more than one link is resolved                                                                                                         |
 | `search-result-page-ids`        | `<span>` populated with `<a>` links in the Source row. If `raw.sourcepage` + `raw.sourceurl` exist, this renders immediately first; async resolved parent-page links are then merged in (comma-separated HTML from `renderPageLinksHtml()`) |
 
-**Source row (card view) — immediate + upstream link resolution:**
+**Source row (card view) — immediate + shared source resolution:**
 
-Each search result card displays a "Source:" or "Sources:" row. If the result contains both `raw.sourcepage` and `raw.sourceurl`, that link is rendered immediately. Upstream intranet page links are then resolved asynchronously via the Squiz Matrix Management API (`/assets/{id}/links`) and merged into the same row.
+Each search result card displays a "Source:" or "Sources:" row. If the result contains both `raw.sourcepage` and `raw.sourceurl`, that link is rendered immediately. Normal visits then read resolved links from the shared Squiz source map. Live Matrix Management API resolution is reserved for `/_nocache` and `/_recache`.
 
-**Source column (table view) — immediate + upstream link resolution:**
+**Source column (table view) — immediate + shared source resolution:**
 
-Table rows display the same Source behavior as card view: immediate `raw.sourcepage`/`raw.sourceurl` (when present), followed by merged async page links when resolution completes.
+Table rows display the same Source behavior as card view: immediate `raw.sourcepage`/`raw.sourceurl` (when present), followed by merged async links from the shared Squiz source map on normal visits. Live Matrix Management API resolution is used only for `/_nocache` and `/_recache`.
 
 **Shared resolution chain** (both card and table views use `resolvePageLinks(assetId)` and `renderPageLinksHtml(pageLinks)`):
 
@@ -779,16 +784,50 @@ Table rows display the same Source behavior as card view: immediate `raw.sourcep
 
 **API authentication:** All Matrix Management API calls use Bearer token `eeaa62869ea5c7e751446454327cf135` via `matrixApiFetch()`.
 
-**Dev/mock mode:** When `isDev` is true (localhost, 127.0.0.1, or \*.github.io), `fetchPageLinks()` reads from `src/mock/matrix-asset-links.json` instead of calling the API. Hidden asset fetches return mock stubs.
+**Dev/mock mode:** When `isDev` is true (localhost, 127.0.0.1, or \*.github.io), normal source rendering uses `src/mock/sources.json`, imported into the Vite bundle. `src/mock/matrix-asset-links.json` remains available to the low-level resolver for diagnostic development of the live relationship chain.
 
 **Shared helper functions:**
 
-- `resolvePageLinks(assetId)` — returns `Promise<Array<{name, path}>>`. Encapsulates the upstream-link resolution chain, including /news/, /dev/, archive exclusion filtering and deduplication. Results are memoized in `pageLinksCache` for the lifetime of the current query, so repeated card/table renders reuse the same Promise and do not re-fetch the same asset links. In production, resolved page-link arrays are also persisted to `localStorage` under `dcdd-page-links:<assetId>`, so repeated page loads can serve cached page links without additional Matrix API fetches. When the current page URL contains `/_nocache` or `/_recache`, this persistent localStorage layer is bypassed (read and write), and fresh link data is fetched. When the URL specifically contains `/_recache`, the first uncached resolve for each unique `assetId` emits a debug console log (`[DCDD] /_recache page-links first-pass`) with the full resolved page-link JSON payload for that asset; subsequent cached resolves in the same page load do not re-log. Dev mode skips localStorage persistence and continues to use the static mock JSON cache.
+- `resolvePageLinks(assetId)` — returns `Promise<Array<{name, path}>>`. Normal production calls read the asset ID from the shared source map; dev calls read the bundled mock. `/_nocache` and `/_recache` call the live upstream resolver. All modes memoize Promises in `pageLinksCache` for the current query. No page-link data is read from or written to localStorage.
 - `renderPageLinksHtml(pageLinks)` — returns comma-separated HTML `<a>` string (or empty string when input is empty). Supports absolute and relative path-like values and appends text fragments when file metadata is provided. Uses jQuery for HTML escaping to prevent XSS. Called by both render functions.
 - `getImmediateSourceLinks(raw)` — returns an initial source-link array from `raw.sourcepage` + `raw.sourceurl` when both are present.
 - `mergeSourceLinks(immediateLinks, fetchedLinks)` — merges immediate and fetched links in stable order (immediate first), deduped by case-insensitive path.
 - `filterPageLinksByPrefix($container)` — host-gated DOM post-filter that runs only when `window.location.hostname === "internal.nt.gov.au"`. After links are rendered, it keeps anchors whose `href` base prefix matches the current page base prefix and always keeps links starting with `https://ntgcentral.nt.gov.au/`; it then rebuilds the container HTML from kept links to prevent orphan commas and returns the remaining-link count to callers.
-- `prefetchPageLinks(originalResults)` — starts background resolution for every unique `raw.assetassetid` in the search result set once the Coveo response arrives. This pre-warms the cache so pagination, sorting, filtering, and view toggles can show previously fetched page links instantly.
+- `prefetchPageLinks(originalResults)` — returns a Promise for background resolution of every unique `raw.assetassetid`. This pre-warms the cache and gives `/_recache` one completion boundary before publication.
+- `publishRecachedSources(prefetchPromise)` — on `/_recache` only, merges staged live results into an authoritative Squiz map and issues one updater request. It refuses to publish when only bundled mock data loaded.
+
+#### Squiz shared sources configuration
+
+| Component | Asset / value | Purpose |
+| --- | --- | --- |
+| Primary source file | File asset `#979085` — `https://internal.nt.gov.au/__data/assets/file/0011/979085/sources.json` | Authoritative `{assetId: [{name, path}]}` map used by normal production visits |
+| Source updater | Asset `#979092` — `https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js` | Nonce-protected JSAPI endpoint that replaces primary file contents during `/_recache` |
+| Fallback source file | File asset `#979093` — `https://internal.nt.gov.au/__data/assets/file/0010/979093/sources-fallback.json` | Read-only rollback copy used when the primary file fails |
+| Bundled fallback | `src/mock/sources.json` | Final read fallback and local fixture; never an automatic publication base |
+| JSAPI key | `1603940920` | Browser-visible client key sent as `X-SquizMatrix-JSAPI-Key`; not sufficient authorization by itself |
+| Execution identity | `internal_content_api #508428` | Service account granted write permission to `#979085`; updater runs the file operation as this account |
+
+The updater contract expected by `coveo-search.js` is:
+
+1. `GET source-updater.js?SQ_ACTION=getToken` returns the nonce as plain text.
+2. `POST source-updater.js` sends `application/json`, the JSAPI key header, and `{ "type": "setSources", "sources": "<pretty-printed JSON string>", "nonce_token": "..." }`.
+3. The Squiz endpoint must hard-code target asset `#979085`, parse and validate the source-map schema, and return JSON such as `{ "success": true }` or `{ "success": false, "error": "..." }`.
+4. The endpoint must independently require an authorized editor caller and validate the nonce/origin. The public JSAPI key and the service account's write permission must not allow an ordinary authenticated user to trigger an update.
+
+Normal read fallback order is `#979085` → `#979093` → bundled `src/mock/sources.json`. Each map must be an object with numeric asset-ID keys. Every value must be an array of objects containing string `name` and `path` fields. A missing key means no cached sources; an explicit empty array is valid and records that the asset has no resolved sources.
+
+`/_nocache` bypasses all shared maps and resolves live without writing. `/_recache` resolves each unique result ID live, loads the primary or Squiz fallback map as a merge base, overlays fresh entries (including empty arrays), sorts numeric keys, and sends exactly one updater request. Use the base search page with no `searchterm` for a complete rebuild. If both Squiz maps fail, live links still render but publication is aborted to prevent fixture data from replacing the shared file.
+
+| Symptom | Check |
+| --- | --- |
+| Primary JSON is invalid or unavailable | Confirm fallback `#979093` loads; the console logs `Primary sources unavailable` |
+| Both Squiz files fail | Bundled mock data should render with a warning; `/_recache` must not POST it |
+| Updater returns 401/403 | Confirm the current caller is an authorized editor, key `1603940920` is scoped to `#979092`, and nonce validation succeeds |
+| Updater reports a file permission error | Confirm `internal_content_api #508428` retains write permission on `#979085` |
+| Nonce request fails | Confirm `?SQ_ACTION=getToken` is enabled on `#979092` and the request carries the authenticated same-origin session |
+| Update succeeds but reads stay stale | Check Squiz/File asset cache invalidation and test the primary URL directly with browser caching disabled |
+| `setSources` is unknown | Add/enable that operation on `#979092`; the published wrapper originally exposed transport helpers but no domain method |
+| Repeated updater requests occur | Confirm `recachePublished` remains page-scoped and publication is called only from the initial search prefetch |
 
 **`data-topic` attribute:** Both card `<li>` elements (`renderCardResults()`) and table `<tr>` elements (`renderTableResults()`) carry a `data-topic` attribute containing `raw.topic` (empty string when absent). No visual display — this is a hidden data marker for DOM-level querying consistent with topic filter values.
 
