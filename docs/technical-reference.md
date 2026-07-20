@@ -719,6 +719,8 @@ Sorting is performed **client-side** via `applySort()` after every fetch and aft
 
 **Behaviour on page load:** `coveo-search.js` fires `runSearch()` unconditionally on `$(document).ready`. It reads `?searchterm=` and `?sort=` from the URL and pre-fills `#search` accordingly. The search form submit handler is attached only if `#policy-search-form` is present — its absence does not block results from loading.
 
+**Search clear control:** The search form includes a clear button (`.ntgc-search-section__clear-btn`) immediately to the left of the submit icon button. It is hidden when the search input is empty (or whitespace-only), shown while the input contains text, and hidden again once the value is cleared. Clicking the clear button empties `#search`, keeps focus in the input, and does not submit the form.
+
 **Date formatting:** Dates are resolved from `raw.approveddate` first (`DD MM YYYY`), with fallback to `raw.resourceupdated` (`YYYY-MM-DD HH:mm:ss`) when `approveddate` is missing or invalid. The resolved date is formatted as `D MMMM YYYY` (e.g. `1 May 2026`) using native JS logic — no external library. Missing or invalid values in both fields return an empty formatted string.
 
 **Search flow (submit → redirect → load):** When the form is submitted, the handler does **not** call `runSearch()` in-place. Instead it redirects to `window.location.pathname + "?searchterm=" + encodeURIComponent(query)`. The resulting page load reads `?searchterm=` and calls `runSearch()` via the normal init path. This keeps the URL bookmarkable and shareable with a single source of truth for the active query.
@@ -858,6 +860,7 @@ The search form fragment. Deployed as a Matrix nested container.
 
 - Includes the full `<form id="policy-search-form" method="get">` markup in this fragment.
 - Uses `<input type="text" name="searchterm" id="search">`.
+- Includes a clear button: `<button class="ntgc-search-section__clear-btn" type="button" aria-label="Clear search" hidden>` with an inner `.ntgc-search-section__clear-icon` span.
 - Uses a Font Awesome search icon span: `<span class="fal fa-search ntgc-search-section__icon"></span>`.
 - The icon is styled in `src/css/search-widget.css` (`.ntgc-search-section__icon`) and rendered at 20px.
 
@@ -900,6 +903,7 @@ Important: `src/search-section.html` includes the `<span id="custom-content"></s
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `#policy-search-form`                  | Search form — submit triggers `runSearch()`                                                                                                                          |
 | `#search`                              | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                      |
+| `.ntgc-search-section__clear-btn`      | Search clear `<button type="button">` shown only when the search input has text; click clears `#search` without submitting                                          |
 | `#doc-search-results-col`              | Results column; `data-view` attr controls card/table                                                                                                                 |
 | `#initialLoadingSpinner`               | Shown during fetch; hidden on response                                                                                                                               |
 | `#doc-search-user-message`             | Error / no-results message; populated via `.html()` so it can contain the structured `buildNoResultsHtml()` block                                                    |
@@ -957,6 +961,8 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.ntgc-search-section__input-wrapper`  | Input + button row (max-width 640px, outlined)                    |
 | `.ntgc-search-section__input-field`    | Flex row — white background, overflow hidden                      |
 | `.ntgc-search-section__text-input`     | `<input type="text">` — unstyled                                  |
+| `.ntgc-search-section__clear-btn`      | `<button type="button">` — hidden by default; toggled by JS based on `#search` value |
+| `.ntgc-search-section__clear-icon`     | Inner clear "×" glyph span used by the clear button               |
 | `.ntgc-search-section__submit-btn`     | `<button type="submit">` — transparent                            |
 | `.ntgc-search-section__icon-container` | 24×24 icon wrapper                                                |
 | `.ntgc-search-section__icon`           | Font Awesome search icon span (`fal fa-search`), rendered at 20px |

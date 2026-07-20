@@ -2232,6 +2232,18 @@ import mockSources from "../mock/sources.json";
       .replace(/'/g, "&#39;");
   }
 
+  /**
+   * Shows the search clear control only when the input has non-whitespace text.
+   * @param {jQuery} $input
+   */
+  function updateSearchClearButtonVisibility($input) {
+    var $clearBtn = $(".ntgc-search-section__clear-btn");
+    if (!$clearBtn.length || !$input || !$input.length) return;
+
+    var hasQuery = $.trim($input.val() || "") !== "";
+    $clearBtn.prop("hidden", !hasQuery);
+  }
+
   // ── Matrix content relocation ──────────────────────────────────────────────
   var assetContentsMoved = false;
   var assetContentsSourceObserver = null;
@@ -2727,6 +2739,7 @@ import mockSources from "../mock/sources.json";
 
     // Pre-fill search input if present
     $("#search").val(initialQuery);
+    updateSearchClearButtonVisibility($("#search"));
 
     function getFallbackView() {
       var savedView = localStorage.getItem("docSearchView");
@@ -2765,6 +2778,18 @@ import mockSources from "../mock/sources.json";
     // Wire up the search form if it exists on this page
     var $form = $("#policy-search-form");
     if ($form.length) {
+      $form.on("input change", "#search", function () {
+        updateSearchClearButtonVisibility($(this));
+      });
+
+      $form.on("click", ".ntgc-search-section__clear-btn", function (e) {
+        e.preventDefault();
+        var $searchInput = $form.find("#search");
+        $searchInput.val("");
+        updateSearchClearButtonVisibility($searchInput);
+        $searchInput.trigger("focus");
+      });
+
       $form.on("submit", function (e) {
         e.preventDefault();
         var query = $.trim($("#search").val());
