@@ -128,21 +128,21 @@ The search runtime now emits GA4 events for submitted searches and zero-result q
 
 Implementation notes:
 
-- Events are query-scoped and only fire for submitted searches with a non-empty `searchterm` URL parameter.
+- Events are query-scoped and only fire for submitted searches with a non-empty `policyterm` URL parameter.
 - Zero-results tracking is limited to the initial submitted query outcome. Filter-driven empty states do not emit the zero-results event.
 - The runtime fails safely when `window.gtag` is unavailable, so local/generated builds can still run without GA.
 
 GA4 setup required:
 
 1. In the GA4 web data stream, keep Enhanced Measurement enabled.
-2. Add `searchterm` as an additional site-search query parameter so GA4 also collects the built-in `view_search_results` event for this page.
+2. Add `policyterm` as an additional site-search query parameter so GA4 also collects the built-in `view_search_results` event for this page.
 3. Register custom dimensions for `search_term`, `results_count`, and `search_source` on the custom events if you want to report on them in standard GA4 reports or Looker Studio.
 
 ### GA4 setup steps (recommended order)
 
 1. Open GA4 Admin -> Data streams -> Web stream used by the search page.
 2. Confirm Enhanced measurement is enabled and Site search is turned on.
-3. In Site search advanced settings, add `searchterm` as an additional query parameter.
+3. In Site search advanced settings, add `policyterm` as an additional query parameter.
 4. In Admin -> Custom definitions, create event-scoped custom dimensions:
 
 - `search_term`

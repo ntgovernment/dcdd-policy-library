@@ -544,7 +544,7 @@ The "Back to search results" link at the top of every collection page. It is an 
 
 ```html
 <a
-  href="/dcdd/dev/policy-library/document-search?searchterm="
+  href="/dcdd/dev/policy-library/document-search?policyterm="
   class="back-to-search"
 >
   <i class="fas fa-arrow-left"></i>
@@ -708,22 +708,22 @@ Search results are fetched by `src/js/coveo-search.js` (compiled into `dist/sear
 **Production API endpoint:**
 
 ```
-https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query?searchterm=ENCODED_QUERY
+https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query?policyterm=ENCODED_QUERY
 ```
 
-This is a Squiz Matrix page asset on the same origin (`internal.nt.gov.au`) that returns the Coveo JSON response directly. It accepts only one caller-supplied parameter: `searchterm`. All other Coveo configuration (scope, result count, partial match, etc.) is baked into the Matrix asset server-side.
+This is a Squiz Matrix page asset on the same origin (`internal.nt.gov.au`) that returns the Coveo JSON response directly. It accepts only one caller-supplied parameter: `policyterm`. All other Coveo configuration (scope, result count, partial match, etc.) is baked into the Matrix asset server-side.
 
 > **Do not use `?a=<assetId>` shorthand.** The `?a=944069` asset shorthand resolves to the document-search page itself and returns the full page HTML — not the Coveo JSON. This causes a `SyntaxError: Unexpected token '<'` in the fetch pipeline.
 
 Sorting is performed **client-side** via `applySort()` after every fetch and after every sort radio button change — no re-fetch is needed. `originalResults` holds the API response order; `allResults` is a sorted copy used for rendering.
 
-**Behaviour on page load:** `coveo-search.js` fires `runSearch()` unconditionally on `$(document).ready`. It reads `?searchterm=` and `?sort=` from the URL and pre-fills `#search` accordingly. The search form submit handler is attached only if `#policy-search-form` is present — its absence does not block results from loading.
+**Behaviour on page load:** `coveo-search.js` fires `runSearch()` unconditionally on `$(document).ready`. It reads `?policyterm=` and `?sort=` from the URL and pre-fills `#search` accordingly. The search form submit handler is attached only if `#policy-search-form` is present — its absence does not block results from loading.
 
 **Search clear control:** The search form includes a clear button (`.ntgc-search-section__clear-btn`) immediately to the left of the submit icon button. It is hidden when the search input is empty (or whitespace-only), shown while the input contains text, and hidden again once the value is cleared. Clicking the clear button empties `#search`, keeps focus in the input, and does not submit the form.
 
 **Date formatting:** Dates are resolved from `raw.approveddate` first (`DD MM YYYY`), with fallback to `raw.resourceupdated` (`YYYY-MM-DD HH:mm:ss`) when `approveddate` is missing or invalid. The resolved date is formatted as `D MMMM YYYY` (e.g. `1 May 2026`) using native JS logic — no external library. Missing or invalid values in both fields return an empty formatted string.
 
-**Search flow (submit → redirect → load):** When the form is submitted, the handler does **not** call `runSearch()` in-place. Instead it redirects to `window.location.pathname + "?searchterm=" + encodeURIComponent(query)`. The resulting page load reads `?searchterm=` and calls `runSearch()` via the normal init path. This keeps the URL bookmarkable and shareable with a single source of truth for the active query.
+**Search flow (submit → redirect → load):** When the form is submitted, the handler does **not** call `runSearch()` in-place. Instead it redirects to `window.location.pathname + "?policyterm=" + encodeURIComponent(query)`. The resulting page load reads `?policyterm=` and calls `runSearch()` via the normal init path. This keeps the URL bookmarkable and shareable with a single source of truth for the active query.
 
 **Module state (inside the IIFE):**
 
@@ -829,7 +829,7 @@ The updater contract used by `coveo-search.js` follows the standard Squiz editab
 
 Normal read fallback order is `#979085` → `#979093` → bundled `src/mock/sources.json`. Each map must be an object with numeric asset-ID keys. Every value must be an array of objects containing string `name` and `path` fields. A missing key means no cached sources; an explicit empty array is valid and records that the asset has no resolved sources.
 
-`/_nocache` bypasses all shared maps and resolves live without writing. `/_recache` resolves each unique result ID live, loads the primary or Squiz fallback map as a merge base, overlays successful fresh entries (including legitimate empty arrays), sorts numeric keys, and runs the lock/write/unlock sequence. Use the base search page with no `searchterm` for a complete rebuild. If a live lookup fails, its existing shared entry is retained and the console reports `retainedAssets`; this prevents a `403` or `404` from being persisted as an empty source list. If both Squiz maps fail, live links still render but publication is aborted to prevent fixture data from replacing the shared file.
+`/_nocache` bypasses all shared maps and resolves live without writing. `/_recache` resolves each unique result ID live, loads the primary or Squiz fallback map as a merge base, overlays successful fresh entries (including legitimate empty arrays), sorts numeric keys, and runs the lock/write/unlock sequence. Use the base search page with no `policyterm` for a complete rebuild. If a live lookup fails, its existing shared entry is retained and the console reports `retainedAssets`; this prevents a `403` or `404` from being persisted as an empty source list. If both Squiz maps fail, live links still render but publication is aborted to prevent fixture data from replacing the shared file.
 
 | Symptom                                      | Check                                                                                                                                            |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -859,7 +859,7 @@ Normal read fallback order is `#979085` → `#979093` → bundled `src/mock/sour
 The search form fragment. Deployed as a Matrix nested container.
 
 - Includes the full `<form id="policy-search-form" method="get">` markup in this fragment.
-- Uses `<input type="text" name="searchterm" id="search">`.
+- Uses `<input type="text" name="policyterm" id="search">`.
 - Includes a clear button: `<button class="ntgc-search-section__clear-btn" type="button" aria-label="Clear search" hidden>` with an inner `.ntgc-search-section__clear-icon` span.
 - Uses a Font Awesome search icon span: `<span class="fal fa-search ntgc-search-section__icon"></span>`.
 - The icon is styled in `src/css/search-widget.css` (`.ntgc-search-section__icon`) and rendered at 20px.
@@ -902,7 +902,7 @@ Important: `src/search-section.html` includes the `<span id="custom-content"></s
 | ID                                     | Purpose                                                                                                                                                              |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `#policy-search-form`                  | Search form — submit triggers `runSearch()`                                                                                                                          |
-| `#search`                              | Free-text input (`name="searchterm"`); pre-filled from `?searchterm=` URL param                                                                                      |
+| `#search`                              | Free-text input (`name="policyterm"`); pre-filled from `?policyterm=` URL param                                                                                      |
 | `.ntgc-search-section__clear-btn`      | Search clear `<button type="button">` shown only when the search input has text; click clears `#search` without submitting                                          |
 | `#doc-search-results-col`              | Results column; `data-view` attr controls card/table                                                                                                                 |
 | `#initialLoadingSpinner`               | Shown during fetch; hidden on response                                                                                                                               |
@@ -1094,7 +1094,7 @@ Event parameters:
 
 Behavior and scope:
 
-- Query-scoped: events fire only when submitted `searchterm` is non-empty.
+- Query-scoped: events fire only when submitted `policyterm` is non-empty.
 - Zero-results event fires only for the initial submitted query outcome.
 - Filter-driven empty states do not emit `policy_search_zero_results`.
 - Runtime is fail-safe: if `window.gtag` is unavailable, event calls are skipped.
@@ -1103,7 +1103,7 @@ Behavior and scope:
 
 1. GA4 Admin -> Data streams -> select the web stream used by this search page.
 2. Keep Enhanced Measurement enabled.
-3. In Site search settings, add `searchterm` as an additional query parameter.
+3. In Site search settings, add `policyterm` as an additional query parameter.
 4. Confirm built-in GA4 site search collection (`view_search_results`) is present.
 5. GA4 Admin -> Custom definitions -> create event-scoped dimensions:
 
@@ -1194,7 +1194,7 @@ Recommended chart set (template baseline):
 
   **Z-index layering:** The drawer overlay is `z-index: 10001` and the drawer panel is `z-index: 10002`, placing them above the NTG intranet header (`z-index: 10000`). If the site header's z-index ever changes, update both values in `src/css/search-widget.css` to stay above it.
 
-- **`runSearch()` fires unconditionally.** The `$(document).ready` handler calls `runSearch()` regardless of whether `#policy-search-form` exists on the page. The form submit handler is wired up separately, only if `#policy-search-form` is found — and it **redirects** to `?searchterm=<encoded_query>` rather than calling `runSearch()` directly. The redirect triggers a fresh page load which re-enters via the init path. This allows the results area to work as a standalone nested container without needing the form on the same page load, and keeps the URL bookmarkable.
+- **`runSearch()` fires unconditionally.** The `$(document).ready` handler calls `runSearch()` regardless of whether `#policy-search-form` exists on the page. The form submit handler is wired up separately, only if `#policy-search-form` is found — and it **redirects** to `?policyterm=<encoded_query>` rather than calling `runSearch()` directly. The redirect triggers a fresh page load which re-enters via the init path. This allows the results area to work as a standalone nested container without needing the form on the same page load, and keeps the URL bookmarkable.
 
 - **`moment.js` is not used by this bundle.** Date formatting uses native parsing for `raw.approveddate` (`DD MM YYYY`) with fallback to `raw.resourceupdated` (`YYYY-MM-DD HH:mm:ss`) and outputs `D MMMM YYYY`. There is no `window.moment` dependency — dates display correctly whether or not moment.js is loaded by the Matrix page.
 

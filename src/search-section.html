@@ -6,7 +6,7 @@
     ────────
     Standalone search input widget used on the DCDD intranet document
     search page. Submits a GET request to the current page URL with the
-    user's query appended as ?searchterm=<value>.
+    user's query appended as ?policyterm=<value>.
 
     This fragment is intended to be embedded (server-side include or CMS
     include) at the top of the page that also contains search-results.html.
@@ -16,7 +16,7 @@
     SUBMIT BEHAVIOUR
     ────────────────
     • method="get" action="" → navigates to
-        <current pathname>?searchterm=<encoded value>
+        <current pathname>?policyterm=<encoded value>
     • coveo-search.js intercepts the #policy-search-form submit event and
       performs the same redirect via JS (fresh page load), allowing it to
       reset state cleanly. If JS is unavailable the native form submit
@@ -26,8 +26,8 @@
 
     URL PARAMETER
     ─────────────
-    Input name="searchterm" produces ?searchterm=<value> in the URL.
-    On page load, coveo-search.js reads ?searchterm= to pre-fill the
+    Input name="policyterm" produces ?policyterm=<value> in the URL.
+    On page load, coveo-search.js reads ?policyterm= to pre-fill the
     input and immediately run the search.
 
     DOM CONTRACT — IDs required by coveo-search.js
@@ -78,7 +78,7 @@
       <div class="ntgc-search-section__input-wrapper" data-state="Default" data-variant="Secondary">
         <div class="ntgc-search-section__input-field">
           <label class="sr-only" for="search">Search</label>
-          <input type="text" name="searchterm" id="search" class="ntgc-search-section__text-input"
+          <input type="text" name="policyterm" id="search" class="ntgc-search-section__text-input"
             placeholder="Search by title or description" value="">
           <button class="ntgc-search-section__clear-btn" type="button" aria-label="Clear search" hidden>
             <span class="ntgc-search-section__clear-icon" aria-hidden="true">&times;</span>

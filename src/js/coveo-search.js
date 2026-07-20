@@ -22,7 +22,7 @@ import mockSources from "../mock/sources.json";
  * Production:  https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query
  *   Squiz Matrix page asset — same-origin (internal.nt.gov.au); returns the
  *   Coveo JSON response directly. Only one param is accepted:
- *     ?searchterm=<encoded query>   — omit or empty → returns all documents
+ *     ?policyterm=<encoded query>   — omit or empty → returns all documents
  *   Do NOT use the ?a=<assetId> proxy shorthand — that resolves to the
  *   document-search page itself and returns HTML, not JSON.
  * Dev/local:   /src/mock/coveo-search-rest-api-query.json  (static fixture)
@@ -153,7 +153,7 @@ import mockSources from "../mock/sources.json";
  *   .doc-search-show-all                "Show all (n)" toggle button; data-facet-container = containerId
  *
  * ── URL PARAMETERS READ ON INIT ──────────────────────────────────────────────
- *   ?searchterm=<string>  pre-fills #search and immediately runs a search
+ *   ?policyterm=<string>  pre-fills #search and immediately runs a search
  *   ?sort=<string>        pre-selects sort; must match a select option value:
  *                           "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *
@@ -203,8 +203,8 @@ import mockSources from "../mock/sources.json";
  *
  * ── SEARCH FLOW ──────────────────────────────────────────────────────────────
  * On form submit: the handler redirects to
- *   window.location.pathname + "?searchterm=" + encodeURIComponent(query)
- * This triggers a fresh page load, which then reads ?searchterm= on init.
+ *   window.location.pathname + "?policyterm=" + encodeURIComponent(query)
+ * This triggers a fresh page load, which then reads ?policyterm= on init.
  * runSearch() is therefore always driven by the URL parameter, never called
  * directly from the submit handler.
  *
@@ -965,10 +965,10 @@ import mockSources from "../mock/sources.json";
   /**
    * Builds the Coveo search endpoint URL for the given query string.
    * @param {string} query  Raw (unencoded) search term.
-   * @returns {string} Full URL with ?searchterm= query parameter.
+  * @returns {string} Full URL with ?policyterm= query parameter.
    */
   function buildCoveoUrl(query) {
-    return COVEO_BASE_URL + "?searchterm=" + encodeURIComponent(query);
+    return COVEO_BASE_URL + "?policyterm=" + encodeURIComponent(query);
   }
 
   function trackAnalyticsEvent(eventName, params) {
@@ -1015,7 +1015,7 @@ import mockSources from "../mock/sources.json";
   /**
    * Returns the value of a URL query parameter from the current page URL,
    * or null when the parameter is absent.
-   * @param {string} name  Parameter name (e.g. "searchterm", "sort").
+  * @param {string} name  Parameter name (e.g. "policyterm", "sort").
    * @returns {string|null}
    */
   function getUrlParam(name) {
@@ -2729,7 +2729,7 @@ import mockSources from "../mock/sources.json";
     $("#initialLoadingSpinner").removeClass("d-none");
 
     // Read initial state from URL params
-    initialQuery = getUrlParam("searchterm") || "";
+    initialQuery = getUrlParam("policyterm") || "";
     var urlSort = getUrlParam("sort");
 
     if (urlSort && SORT_VALUES[urlSort]) {
@@ -2794,7 +2794,7 @@ import mockSources from "../mock/sources.json";
         e.preventDefault();
         var query = $.trim($("#search").val());
         window.location.href =
-          window.location.pathname + "?searchterm=" + encodeURIComponent(query);
+          window.location.pathname + "?policyterm=" + encodeURIComponent(query);
       });
     }
   });
