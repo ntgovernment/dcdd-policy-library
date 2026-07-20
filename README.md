@@ -51,14 +51,14 @@ npm run dev
 - Search form markup: `src/search-section.html`
 - Search results layout: `src/search-results.html`
 - Search logic: `src/js/coveo-search.js`
-- Search view metadata patch (standalone): `src/js/view-preference-metadata-patch.js`
+- Search view metadata provider: `src/js/view-preference-metadata-patch.js`
 - Search styles: `src/css/search-widget.css`
 - Collection styles: `src/css/collection-page.css`
 - Shared tokens: `src/css/tokens.css`
 
-## View preference metadata patch (standalone)
+## View preference metadata
 
-This repo includes a standalone script to persist the search view preference to Squiz user metadata:
+The search bundle persists the search view preference to Squiz user metadata:
 
 - File: `src/js/view-preference-metadata-patch.js`
 - Metadata field: `#969752` (`user.view-preference`)
@@ -67,19 +67,17 @@ This repo includes a standalone script to persist the search view preference to 
 
 Behavior:
 
-- Reads preference from user metadata on load (cross-device restore).
+- Resolves the initial desktop view before rendering search results.
+- Uses Squiz user metadata first, then the local `docSearchView` cache, then defaults to table view.
+- Falls back after a bounded metadata request timeout so search loading cannot be blocked by the Matrix API.
+- Starts from `data-view="pending"` in the canonical template so the results area does not paint table before preference resolution completes.
 - Applies the view state to the existing **Show description** toggle (`grid`/card is on; table is off).
 - Writes changes back to metadata when user toggles view or clicks save.
-- Uses `table` as the desktop default when neither metadata nor a local preference exists.
+- Seeds user metadata asynchronously when no remote preference exists.
 - Preserves existing saved `grid`/card and `table` choices.
-- On mobile (`<=900px`), keeps UI in card mode while preserving the saved preference.
+- On mobile (`<=900px`), keeps UI in card mode while preserving and restoring the saved desktop preference.
 
-Integration options:
-
-1. Bundle it into `dist/search-page.js` by importing it in `src/search-page.js`.
-2. Or include it as a separate script in Matrix after the main search/profile scripts.
-
-The script is standalone (IIFE) and can be merged into `global-v2.js` later if desired.
+`src/search-page.js` imports the metadata provider before `src/js/coveo-search.js`, allowing the search initializer to await the preference before its first render.
 
 ## Matrix custom content slot
 

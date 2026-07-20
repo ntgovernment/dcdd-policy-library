@@ -299,6 +299,11 @@ tr.doc-search-row--moving {
   padding: 0;
 }
 
+.doc-search-results-col[data-view="pending"] .doc-search-results-list,
+.doc-search-results-col[data-view="pending"] .doc-search-table-wrap {
+  display: none;
+}
+
 /* Individual result card */
 .doc-search-result {
   background: var(--clr-bg-default);

@@ -370,12 +370,7 @@ import mockSources from "../mock/sources.json";
         /* Include the raw response in the error below. */
       }
 
-      if (
-        !response.ok ||
-        !result ||
-        result.success === false ||
-        result.error
-      ) {
+      if (!response.ok || !result || result.success === false || result.error) {
         var detail = result
           ? result.error || JSON.stringify(result)
           : responseText.slice(0, 500);
@@ -715,117 +710,123 @@ import mockSources from "../mock/sources.json";
    * @returns {Promise<Array<{name: string, path: string}>>}
    */
   function resolvePageLinksUncached(assetId) {
-    return fetchPageLinks(assetId, assetId, "document links").then(function (links) {
-      var refIds = getPageMajorIds(links);
-      if (!refIds.length) return [];
-      return Promise.all(
-        refIds.map(function (id) {
-          return fetchPageLinks(id, assetId, "reference links").then(function (childLinks) {
-            var hiddenIds = childLinks
-              .filter(function (l) {
-                return l.link_type === "hidden";
-              })
-              .map(function (l) {
-                return l.major_id;
-              });
-            var assetFetches = hiddenIds.length
-              ? Promise.all(
-                  hiddenIds.map(function (hid) {
-                    return (
-                      isDev
-                        ? Promise.resolve({
-                            id: hid,
-                            name: "(mock asset " + hid + ")",
+    return fetchPageLinks(assetId, assetId, "document links").then(
+      function (links) {
+        var refIds = getPageMajorIds(links);
+        if (!refIds.length) return [];
+        return Promise.all(
+          refIds.map(function (id) {
+            return fetchPageLinks(id, assetId, "reference links").then(
+              function (childLinks) {
+                var hiddenIds = childLinks
+                  .filter(function (l) {
+                    return l.link_type === "hidden";
+                  })
+                  .map(function (l) {
+                    return l.major_id;
+                  });
+                var assetFetches = hiddenIds.length
+                  ? Promise.all(
+                      hiddenIds.map(function (hid) {
+                        return (
+                          isDev
+                            ? Promise.resolve({
+                                id: hid,
+                                name: "(mock asset " + hid + ")",
+                              })
+                            : matrixApiFetch("assets/" + hid)
+                        )
+                          .then(function (asset) {
+                            return { major_id: hid, asset: asset };
                           })
-                        : matrixApiFetch("assets/" + hid)
+                          .catch(function (error) {
+                            if (shouldLogRecachePageLinks()) {
+                              recacheResolutionFailures[assetId] = {
+                                stage: "hidden asset",
+                                relatedAssetId: hid,
+                                error: error.message,
+                              };
+                            }
+                            return { major_id: hid, asset: null };
+                          });
+                      }),
                     )
-                      .then(function (asset) {
-                        return { major_id: hid, asset: asset };
-                      })
-                      .catch(function (error) {
-                        if (shouldLogRecachePageLinks()) {
-                          recacheResolutionFailures[assetId] = {
-                            stage: "hidden asset",
-                            relatedAssetId: hid,
-                            error: error.message,
-                          };
-                        }
-                        return { major_id: hid, asset: null };
-                      });
-                  }),
-                )
-              : Promise.resolve([]);
-            return assetFetches.then(function (assets) {
-              var pageContentAssets = assets.filter(function (a) {
-                return (
-                  a.asset &&
-                  a.asset.attributes &&
-                  a.asset.attributes.name === "Page Contents"
-                );
-              });
-              var parentFetches = pageContentAssets.length
-                ? Promise.all(
-                    pageContentAssets.map(function (a) {
-                      var parentId = String(Number(a.major_id) - 1);
-                      return (
-                        isDev
-                          ? Promise.resolve({
-                              id: parentId,
-                              name: "(mock asset " + parentId + ")",
+                  : Promise.resolve([]);
+                return assetFetches.then(function (assets) {
+                  var pageContentAssets = assets.filter(function (a) {
+                    return (
+                      a.asset &&
+                      a.asset.attributes &&
+                      a.asset.attributes.name === "Page Contents"
+                    );
+                  });
+                  var parentFetches = pageContentAssets.length
+                    ? Promise.all(
+                        pageContentAssets.map(function (a) {
+                          var parentId = String(Number(a.major_id) - 1);
+                          return (
+                            isDev
+                              ? Promise.resolve({
+                                  id: parentId,
+                                  name: "(mock asset " + parentId + ")",
+                                })
+                              : matrixApiFetch("assets/" + parentId)
+                          )
+                            .then(function (asset) {
+                              return { major_id: parentId, asset: asset };
                             })
-                          : matrixApiFetch("assets/" + parentId)
+                            .catch(function (error) {
+                              if (shouldLogRecachePageLinks()) {
+                                recacheResolutionFailures[assetId] = {
+                                  stage: "parent asset",
+                                  relatedAssetId: parentId,
+                                  error: error.message,
+                                };
+                              }
+                              return { major_id: parentId, asset: null };
+                            });
+                        }),
                       )
-                        .then(function (asset) {
-                          return { major_id: parentId, asset: asset };
-                        })
-                        .catch(function (error) {
-                          if (shouldLogRecachePageLinks()) {
-                            recacheResolutionFailures[assetId] = {
-                              stage: "parent asset",
-                              relatedAssetId: parentId,
-                              error: error.message,
-                            };
-                          }
-                          return { major_id: parentId, asset: null };
-                        });
-                    }),
-                  )
-                : Promise.resolve([]);
-              return parentFetches.then(function (parents) {
-                return { page_contents_parents: parents };
-              });
+                    : Promise.resolve([]);
+                  return parentFetches.then(function (parents) {
+                    return { page_contents_parents: parents };
+                  });
+                });
+              },
+            );
+          }),
+        ).then(function (results) {
+          var seen = {};
+          var out = [];
+          results.forEach(function (r) {
+            (r.page_contents_parents || []).forEach(function (p) {
+              if (
+                p.asset &&
+                p.asset.attributes &&
+                p.asset.urls &&
+                p.asset.urls.length
+              ) {
+                var name =
+                  p.asset.attributes.short_name ||
+                  p.asset.attributes.name ||
+                  "";
+                var path = p.asset.urls[0].path || "";
+                var lowerPath = path.toLowerCase();
+                var isExcluded =
+                  lowerPath.indexOf("/news/") !== -1 ||
+                  lowerPath.indexOf("/dev/") !== -1 ||
+                  lowerPath.indexOf("archive") !== -1;
+                if (name && path && !isExcluded && !seen[path]) {
+                  seen[path] = true;
+                  out.push({ name: name, path: path });
+                }
+              }
             });
           });
-        }),
-      ).then(function (results) {
-        var seen = {};
-        var out = [];
-        results.forEach(function (r) {
-          (r.page_contents_parents || []).forEach(function (p) {
-            if (
-              p.asset &&
-              p.asset.attributes &&
-              p.asset.urls &&
-              p.asset.urls.length
-            ) {
-              var name =
-                p.asset.attributes.short_name || p.asset.attributes.name || "";
-              var path = p.asset.urls[0].path || "";
-              var lowerPath = path.toLowerCase();
-              var isExcluded =
-                lowerPath.indexOf("/news/") !== -1 ||
-                lowerPath.indexOf("/dev/") !== -1 ||
-                lowerPath.indexOf("archive") !== -1;
-              if (name && path && !isExcluded && !seen[path]) {
-                seen[path] = true;
-                out.push({ name: name, path: path });
-              }
-            }
-          });
+          return out;
         });
-        return out;
-      });
-    });
+      },
+    );
   }
 
   /**
@@ -1178,7 +1179,7 @@ import mockSources from "../mock/sources.json";
 
   // ── Filter building ──────────────────────────────────────────────────────────
   /**
-  * Rebuilds both the Type and Topic facet lists.
+   * Rebuilds both the Type and Topic facet lists.
    * Delegates to buildFacet() for each facet field.
    *
    * `results` is used only to compute per-value counts — it should be allResults
@@ -1232,7 +1233,7 @@ import mockSources from "../mock/sources.json";
    * Populates a facet <ul> with one checkbox item per known value for `field`.
    *
    * Value list  — derived from masterResults (the full corpus), so the same
-  *               set of Type / Topic options is always rendered regardless
+   *               set of Type / Topic options is always rendered regardless
    *               of how narrow the active search query is.
    * Counts      — derived from `results` (typically allResults for the current
    *               query), reflecting how many documents in the current result
@@ -1249,15 +1250,15 @@ import mockSources from "../mock/sources.json";
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
-  * Multi-value fields: topic values may arrive comma-delimited or
+   * Multi-value fields: topic values may arrive comma-delimited or
    * semicolon-delimited (e.g. "Fraud and corruption, Finance and travel" or
-  * "Fraud and corruption; Finance and travel"). splitTopicValues() applies
+   * "Fraud and corruption; Finance and travel"). splitTopicValues() applies
    * a capitalization rule for comma separation: split only when the next token
    * starts with an uppercase letter. Labels like "Conduct, integrity and risk"
    * remain intact.
    *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
-  * @param {string} field        result.raw property name (e.g. "resourcedoctype", "topic").
+   * @param {string} field        result.raw property name (e.g. "resourcedoctype", "topic").
    * @param {string} containerId  jQuery selector for the target <ul> element.
    * @param {Set}    activeSet    Currently active filter values; matching checkboxes are rendered checked.
    */
@@ -1281,11 +1282,11 @@ import mockSources from "../mock/sources.json";
   }
 
   /**
-  * Splits topic values into trimmed, non-empty tokens.
+   * Splits topic values into trimmed, non-empty tokens.
    * Supports semicolon and comma delimiters for multi-value records.
    * For comma-delimited values, it only splits at commas where the next
    * non-space character is uppercase, so labels such as
-  * "Conduct, integrity and risk" remain a single topic.
+   * "Conduct, integrity and risk" remain a single topic.
    * @param {string} val
    * @returns {string[]}
    */
@@ -1347,9 +1348,7 @@ import mockSources from "../mock/sources.json";
       var val = (r.raw || {})[field];
       if (val) {
         var facetValues =
-          field === "topic"
-            ? splitTopicValues(val)
-            : splitFieldValues(val);
+          field === "topic" ? splitTopicValues(val) : splitFieldValues(val);
         facetValues.forEach(function (v) {
           counts[v] = (counts[v] || 0) + 1;
         });
@@ -1362,9 +1361,7 @@ import mockSources from "../mock/sources.json";
       var val = (r.raw || {})[field];
       if (val) {
         var masterValues =
-          field === "topic"
-            ? splitTopicValues(val)
-            : splitFieldValues(val);
+          field === "topic" ? splitTopicValues(val) : splitFieldValues(val);
         masterValues.forEach(function (v) {
           masterKeys[v] = true;
         });
@@ -1984,7 +1981,7 @@ import mockSources from "../mock/sources.json";
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-    * (summary + controls), table wrapper, sidebar, and pagination.
+   * (summary + controls), table wrapper, sidebar, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
@@ -2092,7 +2089,7 @@ import mockSources from "../mock/sources.json";
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-    * (summary + controls), table wrapper, sidebar, and pagination.
+   * (summary + controls), table wrapper, sidebar, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
@@ -2172,7 +2169,7 @@ import mockSources from "../mock/sources.json";
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-    * (summary + controls), table wrapper, sidebar, drawer, and pagination.
+   * (summary + controls), table wrapper, sidebar, drawer, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
@@ -2352,10 +2349,10 @@ import mockSources from "../mock/sources.json";
    *   applySort() → buildFilters(allResults) → applyFilters() → renderPage(1)
    *
    * When the query returns zero results, buildFilters(allResults) is still called
-  * (with an empty array) so the sidebar renders the full Type/Topic list with
+   * (with an empty array) so the sidebar renders the full Type/Topic list with
    * counts of 0, rather than disappearing entirely.
    *
-  * Existing sort and filter state (activeTypeFilters, activeTopicFilters,
+   * Existing sort and filter state (activeTypeFilters, activeTopicFilters,
    * currentSort) are preserved across calls. Clear those Sets before calling if
    * a clean filter slate is needed.
    *
@@ -2691,14 +2688,19 @@ import mockSources from "../mock/sources.json";
   (function () {
     var mq = window.matchMedia("(max-width: 900px)");
     function resetTableViewOnMobile(e) {
-      if (
-        e.matches &&
-        $("#doc-search-results-col").attr("data-view") === "table"
-      ) {
-        $("#doc-search-results-col").attr("data-view", "card");
-        $("#doc-search-view-toggle").attr("aria-pressed", "true");
-        renderPage(currentPage);
-      }
+      var savedView = localStorage.getItem("docSearchView");
+      var desktopView =
+        savedView === "table" || savedView === "card" ? savedView : "table";
+      var nextView = e.matches ? "card" : desktopView;
+
+      if ($("#doc-search-results-col").attr("data-view") === nextView) return;
+
+      $("#doc-search-results-col").attr("data-view", nextView);
+      $("#doc-search-view-toggle").attr(
+        "aria-pressed",
+        nextView === "card" ? "true" : "false",
+      );
+      renderPage(currentPage);
     }
     mq.addEventListener("change", resetTableViewOnMobile);
   })();
@@ -2706,6 +2708,7 @@ import mockSources from "../mock/sources.json";
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
     initAssetContentsRelocation();
+    $("#initialLoadingSpinner").removeClass("d-none");
 
     // Read initial state from URL params
     initialQuery = getUrlParam("searchterm") || "";
@@ -2716,27 +2719,45 @@ import mockSources from "../mock/sources.json";
     }
     syncSortControls();
 
-    // Restore a saved desktop preference; otherwise the markup defaults to table.
-    var savedView = localStorage.getItem("docSearchView");
-    var initialView =
-      savedView === "table" || savedView === "card" ? savedView : "table";
-
-    // Mobile remains card-only without replacing the saved desktop preference.
-    if (window.matchMedia("(max-width: 900px)").matches) {
-      initialView = "card";
-    }
-
-    $("#doc-search-results-col").attr("data-view", initialView);
-    $("#doc-search-view-toggle").attr(
-      "aria-pressed",
-      initialView === "card" ? "true" : "false",
-    );
-
     // Pre-fill search input if present
     $("#search").val(initialQuery);
 
-    // Always load results on page load — independent of form presence
-    runSearch(initialQuery);
+    function getFallbackView() {
+      var savedView = localStorage.getItem("docSearchView");
+      return savedView === "table" || savedView === "card"
+        ? savedView
+        : "table";
+    }
+
+    var preferenceReady = window.docSearchViewPreferenceReady;
+    if (!preferenceReady || typeof preferenceReady.then !== "function") {
+      preferenceReady = Promise.resolve(getFallbackView());
+    }
+
+    preferenceReady
+      .catch(function () {
+        return getFallbackView();
+      })
+      .then(function (preferredView) {
+        var initialView =
+          preferredView === "card" || preferredView === "table"
+            ? preferredView
+            : getFallbackView();
+
+        // Mobile remains card-only without replacing the saved desktop preference.
+        if (window.matchMedia("(max-width: 900px)").matches) {
+          initialView = "card";
+        }
+
+        $("#doc-search-results-col").attr("data-view", initialView);
+        $("#doc-search-view-toggle").attr(
+          "aria-pressed",
+          initialView === "card" ? "true" : "false",
+        );
+
+        // Always load results on page load — independent of form presence.
+        runSearch(initialQuery);
+      });
 
     // Wire up the search form if it exists on this page
     var $form = $("#policy-search-form");

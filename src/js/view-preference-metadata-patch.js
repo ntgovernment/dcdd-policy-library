@@ -23,9 +23,10 @@
   var VIEW_TOGGLE_ID = "doc-search-view-toggle";
   var SAVE_BTN_ID = "doc-search-view-save-btn";
   var DONT_SAVE_BTN_ID = "doc-search-view-dont-save-btn";
+  var METADATA_READ_TIMEOUT_MS = 1500;
 
-  var suppressNextPersist = false;
   var lastPersistedPreference = null;
+  var listenersWired = false;
 
   function normalizePreference(value) {
     return String(value || "").toLowerCase() === "table" ? "table" : "grid";
@@ -44,7 +45,10 @@
   }
 
   function getUserAssetId() {
-    return localStorage.getItem(LOCAL_USER_ID_KEY) || "";
+    var bodyUserId = document.body
+      ? document.body.getAttribute("data-user")
+      : "";
+    return localStorage.getItem(LOCAL_USER_ID_KEY) || bodyUserId || "";
   }
 
   function getApiInstance() {
@@ -99,49 +103,6 @@
 
   function setLocalView(preference) {
     localStorage.setItem(LOCAL_VIEW_KEY, preferenceToView(preference));
-  }
-
-  function syncDomToPreference(preference, options) {
-    var opts = options || {};
-    var els = getElements();
-    var pref = normalizePreference(preference);
-    var desiredView = preferenceToView(pref);
-
-    setLocalView(pref);
-
-    if (!els.col || !els.toggleBtn) {
-      return;
-    }
-
-    if (pref === "table" && isMobileViewport()) {
-      // Keep UI in card mode on mobile while preserving table preference for desktop.
-      els.col.setAttribute("data-view", "card");
-      els.toggleBtn.setAttribute("aria-pressed", "true");
-      return;
-    }
-
-    var currentView = els.col.getAttribute("data-view") || "card";
-    if (currentView === desiredView) {
-      els.toggleBtn.setAttribute(
-        "aria-pressed",
-        desiredView === "card" ? "true" : "false",
-      );
-      return;
-    }
-
-    // Prefer native toggle click so existing render cycle runs.
-    if (opts.useToggleClick !== false) {
-      suppressNextPersist = true;
-      els.toggleBtn.click();
-      return;
-    }
-
-    // Fallback if click path is unavailable.
-    els.col.setAttribute("data-view", desiredView);
-    els.toggleBtn.setAttribute(
-      "aria-pressed",
-      desiredView === "card" ? "true" : "false",
-    );
   }
 
   function parsePreferenceFromMetadataResponse(response) {
@@ -267,27 +228,49 @@
     return new Promise(function (resolve) {
       var api = getApiInstance();
       var userAssetId = getUserAssetId();
+      var settled = false;
+      var timeoutId;
+      var retryId;
 
-      if (!api || !userAssetId) {
-        resolve(null);
-        return;
+      function finish(preference) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        window.clearTimeout(retryId);
+        resolve(preference);
       }
 
-      api.getMetadata({
-        asset_id: userAssetId,
-        dataCallback: function (response) {
-          if (response && response.error) {
-            console.error("[view-pref] getMetadata failed", response);
-            resolve(null);
-            return;
-          }
-          resolve(parsePreferenceFromMetadataResponse(response));
-        },
-        errorCallback: function (err) {
-          console.error("[view-pref] getMetadata request error", err);
-          resolve(null);
-        },
-      });
+      timeoutId = window.setTimeout(function () {
+        finish(null);
+      }, METADATA_READ_TIMEOUT_MS);
+
+      function startReadWhenReady() {
+        api = getApiInstance();
+        userAssetId = getUserAssetId();
+
+        if (!api || !userAssetId) {
+          retryId = window.setTimeout(startReadWhenReady, 50);
+          return;
+        }
+
+        api.getMetadata({
+          asset_id: userAssetId,
+          dataCallback: function (response) {
+            if (response && response.error) {
+              console.error("[view-pref] getMetadata failed", response);
+              finish(null);
+              return;
+            }
+            finish(parsePreferenceFromMetadataResponse(response));
+          },
+          errorCallback: function (err) {
+            console.error("[view-pref] getMetadata request error", err);
+            finish(null);
+          },
+        });
+      }
+
+      startReadWhenReady();
     });
   }
 
@@ -298,16 +281,15 @@
   }
 
   function wireUiListeners() {
+    if (listenersWired) return;
+    listenersWired = true;
+
     document.addEventListener("click", function (event) {
       var target = event.target;
       if (!target) return;
 
       if (target.closest("#" + VIEW_TOGGLE_ID)) {
         window.setTimeout(function () {
-          if (suppressNextPersist) {
-            suppressNextPersist = false;
-            return;
-          }
           persistFromCurrentDom("toggle-click");
         }, 0);
       }
@@ -328,50 +310,27 @@
     });
   }
 
-  function waitForSearchViewElements(timeoutMs) {
-    return new Promise(function (resolve) {
-      var startedAt = Date.now();
-
-      function check() {
-        var els = getElements();
-        if (els.col && els.toggleBtn) {
-          resolve(true);
-          return;
-        }
-
-        if (Date.now() - startedAt >= timeoutMs) {
-          resolve(false);
-          return;
-        }
-
-        window.setTimeout(check, 100);
-      }
-
-      check();
-    });
+  function getLocalPreference() {
+    var value = localStorage.getItem(LOCAL_VIEW_KEY);
+    return value === "table" || value === "card"
+      ? viewToPreference(value)
+      : null;
   }
 
-  function init() {
-    waitForSearchViewElements(5000).then(function (ready) {
-      if (!ready) {
-        return;
+  function resolveInitialPreference() {
+    var localPref = getLocalPreference();
+
+    return readPreferenceFromMetadata().then(function (remotePref) {
+      var effectivePref = remotePref || localPref || "table";
+
+      if (remotePref) {
+        lastPersistedPreference = remotePref;
+      } else {
+        persistPreference(effectivePref, "seed-default");
       }
 
-      wireUiListeners();
-
-      var localValue = localStorage.getItem(LOCAL_VIEW_KEY);
-      var localPref = localValue ? normalizePreference(localValue) : null;
-
-      readPreferenceFromMetadata().then(function (remotePref) {
-        var effectivePref = remotePref || localPref || "table";
-
-        syncDomToPreference(effectivePref, { useToggleClick: true });
-
-        // Seed metadata if missing so the table default is stored server-side.
-        if (!remotePref) {
-          persistPreference(effectivePref, "seed-default");
-        }
-      });
+      setLocalView(effectivePref);
+      return preferenceToView(effectivePref);
     });
   }
 
@@ -380,9 +339,7 @@
     return persistFromCurrentDom("manual-sync");
   };
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  wireUiListeners();
+  window.docSearchViewPreferenceReady = resolveInitialPreference();
+
 })();
