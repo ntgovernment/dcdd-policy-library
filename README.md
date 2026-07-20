@@ -82,7 +82,7 @@ Behavior:
 
 ## Matrix custom content slot
 
-The search results template includes `<span id="custom-content"></span>` in `src/search-results.html`.
+The search section template includes `<span id="custom-content"></span>` in `src/search-section.html`.
 
 At runtime, `src/js/coveo-search.js` moves child nodes from `#asset-contents` into `#custom-content`.
 This supports Squiz Matrix content that may be injected after page load.

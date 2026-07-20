@@ -278,11 +278,11 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
-/* Keep Matrix-injected custom content constrained to the results column width */
+/* Keep Matrix-injected custom content aligned with the search bar container */
 #custom-content {
   display: block;
   width: 100%;
-  max-width: 100%;
+  max-width: 640px;
   min-width: 0;
 }
 

@@ -95,9 +95,9 @@ Both HTML files are copied verbatim from `src/` to `dist/` by the `copy-search-s
 
 ### Matrix custom content relocation (`#asset-contents` → `#custom-content`)
 
-The search results fragment contains a target container:
+The search section fragment contains a target container above the search input:
 
-- `#custom-content` in `src/search-results.html` (propagated to `dist/search-results.html`, `search-section-preview.html`, and generated `index.html`).
+- `#custom-content` in `src/search-section.html` (propagated to `dist/search-section.html`, `search-section-preview.html`, and generated `index.html`).
 
 At runtime, `src/js/coveo-search.js` initializes a relocation helper that moves child nodes from `#asset-contents` into `#custom-content`.
 This is designed for Squiz Matrix scenarios where the source markup is injected after the page bundle has already executed.
@@ -865,7 +865,7 @@ The search form fragment. Deployed as a Matrix nested container.
 
 The results area. Deployed as a separate Matrix nested container. Contains:
 
-Important: `src/search-results.html` includes the literal Squiz keyword `%asset_contents%` as a CMS-managed placeholder for custom messaging content. Keep this token unchanged when editing templates or refactoring markup.
+Important: `src/search-section.html` includes the `<span id="custom-content"></span>` target used by the runtime relocation hook. Keep this container ID unchanged unless selectors are updated in `src/js/coveo-search.js`.
 
 - `.doc-search-outer` / `.doc-search-layout` — outer wrapper and two-column flex container
 - `#doc-search-results-col` — results column; starts as `data-view="pending"` while the bundled preference provider resolves, then switches to `data-view="table"` or `data-view="card"`
@@ -906,7 +906,7 @@ Important: `src/search-results.html` includes the literal Squiz keyword `%asset_
 | `#doc-search-results-summary`          | "Showing X–Y of N results" line                                                                                                                                      |
 | `input[name="doc-search-sort"]`        | Desktop Sort by radio inputs in the sidebar; change event triggers `applySort()` + `applyFilters()` (no API call)                                                    |
 | `#doc-search-mobile-filter-btn`        | Mobile-only "Filters" pill button (hidden on desktop); opens the filter drawer                                                                                       |
-| `#doc-search-view-toggle`              | **Show description** pill; pressed shows card results with descriptions, unpressed shows table results and the toggle mirrors the active view state                               |
+| `#doc-search-view-toggle`              | **Show description** pill; pressed shows card results with descriptions, unpressed shows table results and the toggle mirrors the active view state                  |
 | `#doc-search-results-list`             | Card results `<ul>`                                                                                                                                                  |
 | `#doc-search-table-body`               | Table results `<tbody>`                                                                                                                                              |
 | `#doc-search-pagination`               | Pagination `<nav>`                                                                                                                                                   |
@@ -972,7 +972,7 @@ When changing internal card spacing, use `12px` as the baseline for all bottom m
 | `.doc-search-results-header`                       | Bar above results — summary text + controls. Uses a single flex row with `justify-content: space-between` so the summary is left-aligned and controls are right-aligned.                                                                                                                           |
 | `.doc-search-results-summary`                      | "Showing X–Y of N results" `<p>` in the shared results header row; margin is reset so inherited paragraph styles do not disrupt alignment.                                                                                                                                                         |
 | `.doc-search-results-controls`                     | Flex row — contains the right-aligned description toggle button and does not shrink into the summary text.                                                                                                                                                                                         |
-| `.doc-search-view-toggle`                          | **Show description** toggle pill `<button>`; the pressed state mirrors the active results view (`true` for card, `false` for table)                                                                                                                                                               |
+| `.doc-search-view-toggle`                          | **Show description** toggle pill `<button>`; the pressed state mirrors the active results view (`true` for card, `false` for table)                                                                                                                                                                |
 | `.doc-search-view-toggle__pill`                    | The sliding oval indicator                                                                                                                                                                                                                                                                         |
 | `.doc-search-view-toggle__label`                   | "Show description" text                                                                                                                                                                                                                                                                            |
 | `.doc-search-spinner`                              | Loading spinner wrapper                                                                                                                                                                                                                                                                            |
@@ -1204,7 +1204,7 @@ Recommended chart set (template baseline):
 
 - **Tags use `outline`, not `border`, and have no `border-radius`.** Both `.doc-search-result__tag` and `.doc-search-table__tag` use `outline: 1px var(--clr-border-subtle) solid; outline-offset: -1px` and `overflow: hidden` to achieve the rectangular border appearance. This matches the Figma "Default" variant of the tag component. Do not add `border-radius` — the design is intentionally square-cornered.
 
-- **`search-section-preview.html` is auto-synced.** The `syncPreviewTemplate()` function in `vite.config.js` automatically extracts the entirety of `src/search-results.html` and patches it into `search-section-preview.html` on every build and on every `src/*.html` save during dev, replacing the generated search UI block through the preview page's search bundle script tag. You **never need to manually edit `search-section-preview.html`** for structural changes to the results, filters, card template, or adjacent search UI markup — edit `src/search-results.html` and save. If you need to fully regenerate `search-section-preview.html` from scratch (e.g. after the production CMS page chrome changes significantly): write a Node script that reads `Document search _ DCDD intranet.html`, replaces the CDN widget refs with `./dist/` paths, wraps the `ntgc-search-section` div in `<form id="policy-search-form">`, and injects the contents of `src/search-results.html` after the form.
+- **`search-section-preview.html` is partially auto-synced.** The `syncPreviewTemplate()` function in `vite.config.js` extracts the entirety of `src/search-results.html` and patches only the generated search UI block in `search-section-preview.html` on every build and on every `src/*.html` save during dev. Structural changes to results, filters, card template, and adjacent search UI markup should be made in `src/search-results.html`. Changes to the search form block (including `#custom-content` placement above the search input) are owned by `src/search-section.html` and the preview template wrapper, and may still require explicit edits to `search-section-preview.html` when the page chrome template changes.
 
 - **`emptyOutDir: false` in `vite.collection.config.js` is non-negotiable.** Vite clears `outDir` before each build by default. The collection config writes to `dist/` — the same directory as the search config. Without `emptyOutDir: false`, running the second build (or doing `npm run build`) would silently delete `dist/search-page.css` and `dist/search-page.js`, leaving Matrix without its search assets. The collection config has a comment marking this; do not remove or change it.
 
