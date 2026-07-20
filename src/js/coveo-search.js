@@ -1172,6 +1172,14 @@ import mockSources from "../mock/sources.json";
     return $("#doc-search-results-col").attr("data-view") === "table";
   }
 
+  /** Keeps the Show description toggle aligned with the current results view. */
+  function syncViewToggleState() {
+    $("#doc-search-view-toggle").attr(
+      "aria-pressed",
+      isTableView() ? "false" : "true",
+    );
+  }
+
   /** Returns the correct results-per-page constant for the active view. */
   function resultsPerPage() {
     return isTableView() ? RESULTS_PER_PAGE_TABLE : RESULTS_PER_PAGE_CARD;
@@ -1677,6 +1685,7 @@ import mockSources from "../mock/sources.json";
 
     // Toggle UI elements based on whether results exist
     toggleNoResultsState(filteredResults.length);
+    syncViewToggleState();
     updateResultsSummary();
 
     // Compute new page 1 slice and diff against currently visible items
@@ -2696,10 +2705,7 @@ import mockSources from "../mock/sources.json";
       if ($("#doc-search-results-col").attr("data-view") === nextView) return;
 
       $("#doc-search-results-col").attr("data-view", nextView);
-      $("#doc-search-view-toggle").attr(
-        "aria-pressed",
-        nextView === "card" ? "true" : "false",
-      );
+      syncViewToggleState();
       renderPage(currentPage);
     }
     mq.addEventListener("change", resetTableViewOnMobile);
@@ -2750,10 +2756,7 @@ import mockSources from "../mock/sources.json";
         }
 
         $("#doc-search-results-col").attr("data-view", initialView);
-        $("#doc-search-view-toggle").attr(
-          "aria-pressed",
-          initialView === "card" ? "true" : "false",
-        );
+        syncViewToggleState();
 
         // Always load results on page load — independent of form presence.
         runSearch(initialQuery);

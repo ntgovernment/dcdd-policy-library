@@ -72,6 +72,7 @@ Behavior:
 - Falls back after a bounded metadata request timeout so search loading cannot be blocked by the Matrix API.
 - Starts from `data-view="pending"` in the canonical template so the results area does not paint table before preference resolution completes.
 - Applies the view state to the existing **Show description** toggle (`grid`/card is on; table is off).
+- Keeps the **Show description** toggle synced to the current results view, so table loads with the toggle off and card loads with it on.
 - Writes changes back to metadata when user toggles view or clicks save.
 - Seeds user metadata asynchronously when no remote preference exists.
 - Preserves existing saved `grid`/card and `table` choices.

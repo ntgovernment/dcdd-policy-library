@@ -341,5 +341,4 @@
 
   wireUiListeners();
   window.docSearchViewPreferenceReady = resolveInitialPreference();
-
 })();
