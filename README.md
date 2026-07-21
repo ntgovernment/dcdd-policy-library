@@ -139,7 +139,7 @@ Sorting is client-side and does not trigger a new Coveo request.
 - Drawer `Clear all` resets staged controls only; results do not update until the user clicks `Show N results`.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
 - Pagination includes a right-side **Showing** dropdown with values `10`, `20`, and `All` shared by card and table views.
-- Selecting `All` shows every filtered result on one page and keeps pagination visible as a muted disabled shell (`Prev`, `1`, `Next`).
+- Selecting `All` shows every filtered result on one page. More generally, whenever the filtered result count fits on a single page for the current selection, pagination remains visible as a muted disabled shell (`Prev`, `1`, `Next`).
 - The results summary (for example, Showing X-Y of N results for "query") and the **Show description** toggle share one results header row: summary left, toggle right.
 - When a search query is present, only the query term in the summary suffix is bolded inside the quote marks.
 - Toggle behavior on desktop: off (`aria-pressed="false"`) = table view, on (`aria-pressed="true"`) = card/grid view with descriptions.

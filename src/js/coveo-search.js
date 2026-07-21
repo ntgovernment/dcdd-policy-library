@@ -2065,21 +2065,19 @@ import mockSources from "../mock/sources.json";
   // ── Pagination ──────────────────────────────────────────────────────────────
   /**
    * Rebuilds the #doc-search-pagination nav with Prev, numbered, and Next buttons.
-   * Clears the nav and returns early when there is only one page, except in
-   * All mode where a disabled shell remains visible.
+   * Single-page result sets keep a muted disabled shell visible so pagination
+   * layout remains stable.
    */
   function renderPagination() {
     var $nav = $("#doc-search-pagination");
     var perPage = resultsPerPage();
     var total = filteredResults.length;
     var pages = Math.ceil(total / perPage);
-    var disablePagination = isAllItemsMode();
     var effectivePages = Math.max(pages, 1);
+    var disablePagination = isAllItemsMode() || effectivePages <= 1;
 
     $nav.empty();
     $nav.toggleClass("is-disabled", disablePagination);
-
-    if (effectivePages <= 1 && !disablePagination) return;
 
     // Previous
     var $prev = $(
