@@ -311,6 +311,7 @@ tr.doc-search-row--moving {
   width: 100%;
   max-width: 640px;
   min-width: 0;
+  padding: 1em 0;
 }
 
 #custom-content > * {

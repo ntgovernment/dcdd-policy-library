@@ -82,7 +82,16 @@ Behavior:
 
 ## Matrix custom content slot
 
-The search section template includes `<span id="custom-content"></span>` in `src/search-section.html`.
+The search section template includes a populated `<span id="custom-content">...</span>` block in `src/search-section.html`.
+
+Current default content:
+
+```html
+<div id="component_944142">
+  <p>This library contains resources specific to the Department of Corporate and Digital Development (DCDD) only.</p>
+  <p>For whole-of-government policies, go to <a href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.</p>
+</div>
+```
 
 At runtime, `src/js/coveo-search.js` moves child nodes from `#asset-contents` into `#custom-content`.
 This supports Squiz Matrix content that may be injected after page load.
