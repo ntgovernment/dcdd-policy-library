@@ -765,6 +765,11 @@ tr.doc-search-row--moving {
   margin: 0 0 0 !important;
 }
 
+.doc-search-filter-group--sort-radios > .doc-search-filter-group__title {
+  font-size: 20px !important;
+  margin-bottom: 1em !important;
+}
+
 .doc-search-filter-group__toggle {
   display: inline-flex;
   justify-content: flex-start;

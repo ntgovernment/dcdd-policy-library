@@ -121,6 +121,7 @@ Sorting is client-side and does not trigger a new Coveo request.
 
 - Desktop uses expanded `Sort by` radio buttons above the `Filters` heading in the sidebar.
 - Mobile uses matching `Sort by` radio buttons inside the filter drawer.
+- The Sort by heading uses the same font size as the `Filters` heading (`20px`) and keeps `1em` bottom margin for spacing before the radio list.
 - Desktop radios use `name="doc-search-sort"`; drawer radios use `name="doc-search-drawer-sort"` so drawer changes are staged until the dynamic `Show N results` button is clicked.
 - The mobile drawer footer keeps the primary `Show N results` button and the secondary `Clear all` link visible while the filter controls scroll.
 - Runtime button copy is count-aware: `Show 1 result` for one match, otherwise `Show N results`.
