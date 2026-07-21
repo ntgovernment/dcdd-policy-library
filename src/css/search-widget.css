@@ -214,6 +214,10 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
+.doc-search-results-summary strong {
+  font-weight: 700;
+}
+
 /* Results controls */
 .doc-search-results-controls {
   display: flex;

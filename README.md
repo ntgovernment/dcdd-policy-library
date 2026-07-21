@@ -126,7 +126,8 @@ Sorting is client-side and does not trigger a new Coveo request.
 - Runtime button copy is count-aware: `Show 1 result` for one match, otherwise `Show N results`.
 - Drawer `Clear all` resets staged controls only; results do not update until the user clicks `Show N results`.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
-- The results summary (`Showing X-Y of N results`) and the **Show description** toggle share one results header row: summary left, toggle right.
+- The results summary (for example, Showing X-Y of N results for "query") and the **Show description** toggle share one results header row: summary left, toggle right.
+- When a search query is present, only the query term in the summary suffix is bolded inside the quote marks.
 - Toggle behavior on desktop: off (`aria-pressed="false"`) = table view, on (`aria-pressed="true"`) = card/grid view with descriptions.
 - In table view, when search/filter results are `0`, the table wrapper is hidden so column headers are not shown.
 

@@ -2015,9 +2015,13 @@ import mockSources from "../mock/sources.json";
     var $summary = $("#doc-search-results-summary");
 
     if (total === 0) {
-      $summary.text("");
+      $summary.html("");
     } else {
-      $summary.text(
+      var querySuffix = initialQuery
+        ? ' for "<strong>' + escHtml(initialQuery) + '</strong>"'
+        : "";
+
+      $summary.html(
         "Showing " +
           start +
           "–" +
@@ -2026,7 +2030,7 @@ import mockSources from "../mock/sources.json";
           total +
           " result" +
           (total !== 1 ? "s" : "") +
-          (initialQuery ? ' for "' + initialQuery + '"' : ""),
+          querySuffix,
       );
     }
   }
