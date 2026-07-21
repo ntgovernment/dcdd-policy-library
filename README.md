@@ -82,9 +82,10 @@ Behavior:
 
 ## Matrix custom content slot
 
-The search section template includes a populated `<span id="custom-content">...</span>` block in `src/search-section.html`.
+The local dev preview template includes a populated `<span id="custom-content">...</span>` block in `search-section-preview.html`.
+That content is preview-only and does not live in the production search fragment.
 
-Current default content:
+Current preview-only content:
 
 ```html
 <div id="component_944142">
@@ -92,6 +93,8 @@ Current default content:
   <p>For whole-of-government policies, go to <a href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.</p>
 </div>
 ```
+
+The production search section template in `src/search-section.html` keeps `#custom-content` empty.
 
 At runtime, `src/js/coveo-search.js` moves child nodes from `#asset-contents` into `#custom-content`.
 This supports Squiz Matrix content that may be injected after page load.

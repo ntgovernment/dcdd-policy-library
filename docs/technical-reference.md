@@ -98,7 +98,9 @@ Both HTML files are copied verbatim from `src/` to `dist/` by the `copy-search-s
 The search section fragment contains a custom content container above the search input:
 
 - `#custom-content` in `src/search-section.html` (propagated to `dist/search-section.html`, `search-section-preview.html`, and generated `index.html`).
-- The default source markup currently renders the DCDD notice block in that container, so the local dev preview shows the message without needing injected Matrix content.
+- The production source markup keeps that container empty.
+- The local dev preview adds a DCDD notice block in `search-section-preview.html`, so the preview shows the message without needing injected Matrix content.
+- `search-section-preview.html` is a local preview artifact only and is not deployed to Matrix.
 
 At runtime, `src/js/coveo-search.js` initializes a relocation helper that moves child nodes from `#asset-contents` into `#custom-content`.
 This is designed for Squiz Matrix scenarios where the source markup is injected after the page bundle has already executed.
