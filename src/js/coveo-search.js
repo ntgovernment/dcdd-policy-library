@@ -929,8 +929,8 @@ import mockSources from "../mock/sources.json";
 
   var RESULTS_PER_PAGE_DEFAULT = 10;
   var ITEMS_PER_PAGE_VALUES = {
-    "10": true,
-    "20": true,
+    10: true,
+    20: true,
     all: true,
   };
   var MAX_FACET_VISIBLE = 7;
@@ -969,7 +969,7 @@ import mockSources from "../mock/sources.json";
   /**
    * Builds the Coveo search endpoint URL for the given query string.
    * @param {string} query  Raw (unencoded) search term.
-  * @returns {string} Full URL with ?policyterm= query parameter.
+   * @returns {string} Full URL with ?policyterm= query parameter.
    */
   function buildCoveoUrl(query) {
     return COVEO_BASE_URL + "?policyterm=" + encodeURIComponent(query);
@@ -1019,7 +1019,7 @@ import mockSources from "../mock/sources.json";
   /**
    * Returns the value of a URL query parameter from the current page URL,
    * or null when the parameter is absent.
-  * @param {string} name  Parameter name (e.g. "policyterm", "sort").
+   * @param {string} name  Parameter name (e.g. "policyterm", "sort").
    * @returns {string|null}
    */
   function getUrlParam(name) {

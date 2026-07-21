@@ -345,7 +345,11 @@
         field_val: pref,
         dataCallback: function (response) {
           if (response && response.error) {
-            console.error("[view-pref] setItemsMetadata failed", reason, response);
+            console.error(
+              "[view-pref] setItemsMetadata failed",
+              reason,
+              response,
+            );
             resolve(false);
             return;
           }
@@ -353,7 +357,11 @@
           resolve(true);
         },
         errorCallback: function (err) {
-          console.error("[view-pref] setItemsMetadata request error", reason, err);
+          console.error(
+            "[view-pref] setItemsMetadata request error",
+            reason,
+            err,
+          );
           resolve(false);
         },
       });
