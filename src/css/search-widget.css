@@ -625,13 +625,80 @@ tr.doc-search-row--moving {
 /* ══════════════════════════════════════════════════════════════════════════
    PAGINATION
    ══════════════════════════════════════════════════════════════════════════ */
+.doc-search-pagination-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 24px;
+}
+
 .doc-search-pagination {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 24px 0 0;
+  padding: 0;
+}
+
+.doc-search-pagination.is-disabled {
+  opacity: 0.6;
+}
+
+.doc-search-pagination.is-disabled .doc-search-pagination__btn,
+.doc-search-pagination.is-disabled .doc-search-pagination__ellipsis {
+  pointer-events: none;
+}
+
+.doc-search-items-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.doc-search-items-control__label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--clr-text-default);
+}
+
+.doc-search-items-control__select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.doc-search-items-control__select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  min-width: 88px;
+  height: 40px;
+  padding: 0 40px 0 12px;
+  border: 1px solid var(--clr-border-subtle, #d0e0e0);
+  border-radius: 0;
+  background: var(--clr-bg-default, #ffffff);
+  color: var(--clr-text-default);
+  font-size: 16px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.doc-search-items-control__select:focus-visible {
+  outline: 2px solid var(--clr-focus, #88bc88);
+  outline-offset: 2px;
+}
+
+.doc-search-items-control__chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--clr-text-default);
+  pointer-events: none;
 }
 
 .doc-search-pagination__btn {
@@ -1320,6 +1387,22 @@ tr.doc-search-row--moving {
   .doc-search-mobile-filter-btn__chevron {
     color: var(--clr-link-default, #102040);
     flex-shrink: 0;
+  }
+
+  .doc-search-pagination-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    padding-top: 20px;
+  }
+
+  .doc-search-pagination {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .doc-search-items-control {
+    justify-content: center;
   }
 }
 

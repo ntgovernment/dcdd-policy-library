@@ -1,8 +1,9 @@
 /*
  * view-preference-metadata-patch.js
  *
- * Standalone patch to persist the search view preference (grid/table)
- * into user metadata field #969752 while retaining docSearchView local cache.
+ * Standalone patch to persist search preferences into user metadata:
+ * - View preference (grid/table) -> field #969752
+ * - Items per page (10/20/all) -> field #980780
  *
  * Canonical metadata values:
  * - table (default)
@@ -16,7 +17,9 @@
   "use strict";
 
   var METADATA_FIELD_ID = "969752";
+  var ITEMS_METADATA_FIELD_ID = "980780";
   var LOCAL_VIEW_KEY = "docSearchView";
+  var LOCAL_ITEMS_KEY = "docSearchItemsPerPage";
   var LOCAL_USER_ID_KEY = "intra-user-id";
   var API_KEY = "6456420643";
   var SEARCH_COL_ID = "doc-search-results-col";
@@ -26,6 +29,7 @@
   var METADATA_READ_TIMEOUT_MS = 1500;
 
   var lastPersistedPreference = null;
+  var lastPersistedItemsPreference = null;
   var listenersWired = false;
 
   function normalizePreference(value) {
@@ -42,6 +46,11 @@
 
   function isMobileViewport() {
     return window.matchMedia("(max-width: 900px)").matches;
+  }
+
+  function normalizeItemsPreference(value) {
+    var normalized = String(value || "").toLowerCase();
+    return normalized === "20" || normalized === "all" ? normalized : "10";
   }
 
   function getUserAssetId() {
@@ -105,6 +114,10 @@
     localStorage.setItem(LOCAL_VIEW_KEY, preferenceToView(preference));
   }
 
+  function setLocalItemsPreference(value) {
+    localStorage.setItem(LOCAL_ITEMS_KEY, normalizeItemsPreference(value));
+  }
+
   function parsePreferenceFromMetadataResponse(response) {
     var fieldId = METADATA_FIELD_ID;
     var aliases = [
@@ -124,6 +137,92 @@
         if (String(candidate).toLowerCase() === "table") return normalized;
         if (String(candidate).toLowerCase() === "grid") return normalized;
         if (String(candidate).toLowerCase() === "card") return "grid";
+      }
+      return null;
+    }
+
+    function walk(node) {
+      var direct;
+      var i;
+      var key;
+      var candidate;
+
+      if (node == null) return null;
+
+      direct = valueFromCandidate(node);
+      if (direct) return direct;
+
+      if (typeof node !== "object") return null;
+      if (visited.has(node)) return null;
+      visited.add(node);
+
+      if (Object.prototype.hasOwnProperty.call(node, fieldId)) {
+        direct = valueFromCandidate(node[fieldId]);
+        if (direct) return direct;
+      }
+
+      for (i = 0; i < aliases.length; i += 1) {
+        key = aliases[i];
+        if (Object.prototype.hasOwnProperty.call(node, key)) {
+          direct = valueFromCandidate(node[key]);
+          if (direct) return direct;
+        }
+      }
+
+      if (Array.isArray(node)) {
+        for (i = 0; i < node.length; i += 1) {
+          candidate = walk(node[i]);
+          if (candidate) return candidate;
+        }
+        return null;
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(node, "field_id") &&
+        String(node.field_id) === fieldId
+      ) {
+        candidate =
+          valueFromCandidate(node.field_val) ||
+          valueFromCandidate(node.value) ||
+          valueFromCandidate(node.val);
+        if (candidate) return candidate;
+      }
+
+      var keys = Object.keys(node);
+      for (i = 0; i < keys.length; i += 1) {
+        candidate = walk(node[keys[i]]);
+        if (candidate) return candidate;
+      }
+
+      return null;
+    }
+
+    return walk(response);
+  }
+
+  function parseItemsPreferenceFromMetadataResponse(response) {
+    var fieldId = ITEMS_METADATA_FIELD_ID;
+    var aliases = [
+      "user.items-preference",
+      "items-preference",
+      "items_preference",
+      "itemsPreference",
+      "docSearchItemsPerPage",
+    ];
+
+    var visited = new WeakSet();
+
+    function valueFromCandidate(candidate) {
+      if (candidate == null) return null;
+      if (typeof candidate === "string" || typeof candidate === "number") {
+        var normalized = normalizeItemsPreference(candidate);
+        if (
+          String(candidate).toLowerCase() === "10" ||
+          String(candidate).toLowerCase() === "20" ||
+          String(candidate).toLowerCase() === "all"
+        ) {
+          return normalized;
+        }
       }
       return null;
     }
@@ -224,6 +323,43 @@
     });
   }
 
+  function persistItemsPreference(preference, reason) {
+    return new Promise(function (resolve) {
+      var api = getApiInstance();
+      var userAssetId = getUserAssetId();
+      var pref = normalizeItemsPreference(preference);
+
+      if (!api || !userAssetId) {
+        resolve(false);
+        return;
+      }
+
+      if (lastPersistedItemsPreference === pref) {
+        resolve(true);
+        return;
+      }
+
+      api.setMetadata({
+        asset_id: userAssetId,
+        field_id: ITEMS_METADATA_FIELD_ID,
+        field_val: pref,
+        dataCallback: function (response) {
+          if (response && response.error) {
+            console.error("[view-pref] setItemsMetadata failed", reason, response);
+            resolve(false);
+            return;
+          }
+          lastPersistedItemsPreference = pref;
+          resolve(true);
+        },
+        errorCallback: function (err) {
+          console.error("[view-pref] setItemsMetadata request error", reason, err);
+          resolve(false);
+        },
+      });
+    });
+  }
+
   function readPreferenceFromMetadata() {
     return new Promise(function (resolve) {
       var api = getApiInstance();
@@ -265,6 +401,56 @@
           },
           errorCallback: function (err) {
             console.error("[view-pref] getMetadata request error", err);
+            finish(null);
+          },
+        });
+      }
+
+      startReadWhenReady();
+    });
+  }
+
+  function readItemsPreferenceFromMetadata() {
+    return new Promise(function (resolve) {
+      var api = getApiInstance();
+      var userAssetId = getUserAssetId();
+      var settled = false;
+      var timeoutId;
+      var retryId;
+
+      function finish(preference) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        window.clearTimeout(retryId);
+        resolve(preference);
+      }
+
+      timeoutId = window.setTimeout(function () {
+        finish(null);
+      }, METADATA_READ_TIMEOUT_MS);
+
+      function startReadWhenReady() {
+        api = getApiInstance();
+        userAssetId = getUserAssetId();
+
+        if (!api || !userAssetId) {
+          retryId = window.setTimeout(startReadWhenReady, 50);
+          return;
+        }
+
+        api.getMetadata({
+          asset_id: userAssetId,
+          dataCallback: function (response) {
+            if (response && response.error) {
+              console.error("[view-pref] getItemsMetadata failed", response);
+              finish(null);
+              return;
+            }
+            finish(parseItemsPreferenceFromMetadataResponse(response));
+          },
+          errorCallback: function (err) {
+            console.error("[view-pref] getItemsMetadata request error", err);
             finish(null);
           },
         });
@@ -317,11 +503,26 @@
       : null;
   }
 
+  function getLocalItemsPreference() {
+    var value = localStorage.getItem(LOCAL_ITEMS_KEY);
+    if (value == null) {
+      return null;
+    }
+    return normalizeItemsPreference(value);
+  }
+
   function resolveInitialPreference() {
     var localPref = getLocalPreference();
+    var localItemsPref = getLocalItemsPreference();
 
-    return readPreferenceFromMetadata().then(function (remotePref) {
+    return Promise.all([
+      readPreferenceFromMetadata(),
+      readItemsPreferenceFromMetadata(),
+    ]).then(function (remotePrefs) {
+      var remotePref = remotePrefs[0];
+      var remoteItemsPref = remotePrefs[1];
       var effectivePref = remotePref || localPref || "table";
+      var effectiveItemsPref = remoteItemsPref || localItemsPref || "10";
 
       if (remotePref) {
         lastPersistedPreference = remotePref;
@@ -329,14 +530,30 @@
         persistPreference(effectivePref, "seed-default");
       }
 
+      if (remoteItemsPref) {
+        lastPersistedItemsPreference = remoteItemsPref;
+      } else {
+        persistItemsPreference(effectiveItemsPref, "seed-items-default");
+      }
+
       setLocalView(effectivePref);
-      return preferenceToView(effectivePref);
+      setLocalItemsPreference(effectiveItemsPref);
+      return {
+        view: preferenceToView(effectivePref),
+        itemsPerPage: normalizeItemsPreference(effectiveItemsPref),
+      };
     });
   }
 
   // Optional helper for future integration points.
   window.syncUserViewPreference = function () {
     return persistFromCurrentDom("manual-sync");
+  };
+
+  window.syncUserItemsPreference = function (value) {
+    var pref = normalizeItemsPreference(value);
+    setLocalItemsPreference(pref);
+    return persistItemsPreference(pref, "manual-items-sync");
   };
 
   wireUiListeners();

@@ -158,8 +158,7 @@ import mockSources from "../mock/sources.json";
  *                           "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *
  * ── KEY CONSTANTS ────────────────────────────────────────────────────────────
- *   RESULTS_PER_PAGE_CARD   10      — cards shown per page
- *   RESULTS_PER_PAGE_TABLE  15      — rows shown per page in table view
+ *   RESULTS_PER_PAGE_DEFAULT 10      — default results shown per page
  *   MAX_FACET_VISIBLE        7      — facet items visible before "Show all"
  *   MATRIX_API_BASE         String  — Squiz Matrix Management API base URL
  *   MATRIX_API_TOKEN        String  — Bearer token for the Management API
@@ -928,8 +927,12 @@ import mockSources from "../mock/sources.json";
     return fileMeta ? base + "#:~:text=" + encodeURIComponent(fileMeta) : base;
   }
 
-  var RESULTS_PER_PAGE_CARD = 10;
-  var RESULTS_PER_PAGE_TABLE = 15;
+  var RESULTS_PER_PAGE_DEFAULT = 10;
+  var ITEMS_PER_PAGE_VALUES = {
+    "10": true,
+    "20": true,
+    all: true,
+  };
   var MAX_FACET_VISIBLE = 7;
 
   var SEARCH_ANALYTICS_EVENTS = {
@@ -953,6 +956,7 @@ import mockSources from "../mock/sources.json";
   var filterAnimTimeout = null;
   var visibleResultIds = new Set();
   var trackedSearchEvents = {};
+  var currentItemsPerPage = "10";
 
   var SORT_VALUES = {
     relevancy: true,
@@ -1182,7 +1186,27 @@ import mockSources from "../mock/sources.json";
 
   /** Returns the correct results-per-page constant for the active view. */
   function resultsPerPage() {
-    return isTableView() ? RESULTS_PER_PAGE_TABLE : RESULTS_PER_PAGE_CARD;
+    if (currentItemsPerPage === "20") {
+      return 20;
+    }
+    if (currentItemsPerPage === "all") {
+      return Math.max(filteredResults.length, 1);
+    }
+    return RESULTS_PER_PAGE_DEFAULT;
+  }
+
+  function normalizeItemsPerPage(value) {
+    var normalized = String(value || "").toLowerCase();
+    return ITEMS_PER_PAGE_VALUES[normalized] ? normalized : "10";
+  }
+
+  function setItemsPerPageSelection(value) {
+    currentItemsPerPage = normalizeItemsPerPage(value);
+    $("#doc-search-items-per-page").val(currentItemsPerPage);
+  }
+
+  function isAllItemsMode() {
+    return currentItemsPerPage === "all";
   }
 
   // ── Filter building ──────────────────────────────────────────────────────────
@@ -1760,9 +1784,12 @@ import mockSources from "../mock/sources.json";
    * @param {Set}    [enteringIds] Result IDs that should receive an enter animation.
    */
   function renderPage(page, enteringIds) {
-    currentPage = page;
     var perPage = resultsPerPage();
-    var start = (page - 1) * perPage;
+    var totalPages = Math.max(1, Math.ceil(filteredResults.length / perPage));
+    var targetPage = Math.min(Math.max(page, 1), totalPages);
+
+    currentPage = targetPage;
+    var start = (targetPage - 1) * perPage;
     var pageSlice = filteredResults.slice(start, start + perPage);
 
     if (isTableView()) {
@@ -1999,7 +2026,7 @@ import mockSources from "../mock/sources.json";
     $(".doc-search-results-header").toggleClass("d-none", noResults);
     $(".doc-search-table-wrap").toggleClass("d-none", noResults);
     $("#doc-search-sidebar").toggleClass("d-none", noResults);
-    $("#doc-search-pagination").toggleClass("d-none", noResults);
+    $("#doc-search-pagination-row").toggleClass("d-none", noResults);
   }
 
   // ── Results summary line ──────────────────────────────────────────────────────
@@ -2038,31 +2065,38 @@ import mockSources from "../mock/sources.json";
   // ── Pagination ──────────────────────────────────────────────────────────────
   /**
    * Rebuilds the #doc-search-pagination nav with Prev, numbered, and Next buttons.
-   * Clears the nav and returns early when there is only one page.
+   * Clears the nav and returns early when there is only one page, except in
+   * All mode where a disabled shell remains visible.
    */
   function renderPagination() {
     var $nav = $("#doc-search-pagination");
     var perPage = resultsPerPage();
     var total = filteredResults.length;
     var pages = Math.ceil(total / perPage);
+    var disablePagination = isAllItemsMode();
+    var effectivePages = Math.max(pages, 1);
 
     $nav.empty();
+    $nav.toggleClass("is-disabled", disablePagination);
 
-    if (pages <= 1) return;
+    if (effectivePages <= 1 && !disablePagination) return;
 
     // Previous
     var $prev = $(
       '<button type="button" class="doc-search-pagination__btn doc-search-pagination__btn--prev">' +
         '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.8052 8.36231C4.6206 8.16354 4.6206 7.83654 4.8052 7.63777L10.522 1.48245C10.7066 1.28368 11.0104 1.28368 11.195 1.48245C11.3796 1.68121 11.3796 2.00822 11.195 2.20698L5.81458 8.00004L11.195 13.7931C11.3796 13.9919 11.3796 14.3189 11.195 14.5176C11.0104 14.7164 10.7066 14.7164 10.522 14.5176L4.8052 8.36231Z" fill="currentColor"/></svg>Prev</button>',
     );
-    if (currentPage === 1) $prev.prop("disabled", true);
+    if (currentPage === 1 || disablePagination) $prev.prop("disabled", true);
     $prev.on("click", function () {
+      if (disablePagination) return;
       renderPage(currentPage - 1);
     });
     $nav.append($prev);
 
     // Page numbers (with ellipsis)
-    var pagesToShow = buildPageRange(currentPage, pages);
+    var pagesToShow = disablePagination
+      ? [1]
+      : buildPageRange(currentPage, effectivePages);
     pagesToShow.forEach(function (p) {
       if (p === "…") {
         $nav.append('<span class="doc-search-pagination__ellipsis">…</span>');
@@ -2079,6 +2113,7 @@ import mockSources from "../mock/sources.json";
           "click",
           (function (pg) {
             return function () {
+              if (disablePagination) return;
               renderPage(pg);
             };
           })(p),
@@ -2092,8 +2127,11 @@ import mockSources from "../mock/sources.json";
       '<button type="button" class="doc-search-pagination__btn doc-search-pagination__btn--next">' +
         'Next<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.8052 8.36231C4.6206 8.16354 4.6206 7.83654 4.8052 7.63777L10.522 1.48245C10.7066 1.28368 11.0104 1.28368 11.195 1.48245C11.3796 1.68121 11.3796 2.00822 11.195 2.20698L5.81458 8.00004L11.195 13.7931C11.3796 13.9919 11.3796 14.3189 11.195 14.5176C11.0104 14.7164 10.7066 14.7164 10.522 14.5176L4.8052 8.36231Z" fill="currentColor"/></svg></button>',
     );
-    if (currentPage === pages) $next.prop("disabled", true);
+    if (currentPage === effectivePages || disablePagination) {
+      $next.prop("disabled", true);
+    }
     $next.on("click", function () {
+      if (disablePagination) return;
       renderPage(currentPage + 1);
     });
     $nav.append($next);
@@ -2111,7 +2149,7 @@ import mockSources from "../mock/sources.json";
     $(".doc-search-results-header").toggleClass("d-none", noResults);
     $(".doc-search-table-wrap").toggleClass("d-none", noResults);
     $("#doc-search-sidebar").toggleClass("d-none", noResults);
-    $("#doc-search-pagination").toggleClass("d-none", noResults);
+    $("#doc-search-pagination-row").toggleClass("d-none", noResults);
   }
 
   /**
@@ -2679,6 +2717,17 @@ import mockSources from "../mock/sources.json";
     applyFilters();
   });
 
+  // ── Event: items-per-page change ────────────────────────────────────────────
+  $(document).on("change", "#doc-search-items-per-page", function () {
+    setItemsPerPageSelection($(this).val());
+    currentPage = 1;
+    renderPage(1);
+
+    if (typeof window.syncUserItemsPreference === "function") {
+      window.syncUserItemsPreference(currentItemsPerPage);
+    }
+  });
+
   // ── Event: view toggle ───────────────────────────────────────────────────────
   $(document).on("click", "#doc-search-view-toggle", function () {
     var $btn = $(this);
@@ -2752,16 +2801,36 @@ import mockSources from "../mock/sources.json";
         : "table";
     }
 
+    function getFallbackItemsPerPage() {
+      return normalizeItemsPerPage(
+        localStorage.getItem("docSearchItemsPerPage") || "10",
+      );
+    }
+
     var preferenceReady = window.docSearchViewPreferenceReady;
     if (!preferenceReady || typeof preferenceReady.then !== "function") {
-      preferenceReady = Promise.resolve(getFallbackView());
+      preferenceReady = Promise.resolve({
+        view: getFallbackView(),
+        itemsPerPage: getFallbackItemsPerPage(),
+      });
     }
 
     preferenceReady
       .catch(function () {
-        return getFallbackView();
+        return {
+          view: getFallbackView(),
+          itemsPerPage: getFallbackItemsPerPage(),
+        };
       })
-      .then(function (preferredView) {
+      .then(function (preferenceState) {
+        var preferredView =
+          preferenceState && typeof preferenceState === "object"
+            ? preferenceState.view
+            : preferenceState;
+        var preferredItems =
+          preferenceState && typeof preferenceState === "object"
+            ? preferenceState.itemsPerPage
+            : getFallbackItemsPerPage();
         var initialView =
           preferredView === "card" || preferredView === "table"
             ? preferredView
@@ -2772,6 +2841,7 @@ import mockSources from "../mock/sources.json";
           initialView = "card";
         }
 
+        setItemsPerPageSelection(preferredItems);
         $("#doc-search-results-col").attr("data-view", initialView);
         syncViewToggleState();
 

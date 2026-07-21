@@ -56,26 +56,31 @@ npm run dev
 - Collection styles: `src/css/collection-page.css`
 - Shared tokens: `src/css/tokens.css`
 
-## View preference metadata
+## View and items metadata
 
-The search bundle persists the search view preference to Squiz user metadata:
+The search bundle persists search UI preferences to Squiz user metadata:
 
 - File: `src/js/view-preference-metadata-patch.js`
-- Metadata field: `#969752` (`user.view-preference`)
-- Canonical values saved: `grid` and `table` (default when no preference exists)
-- Local compatibility key: `docSearchView` (`card`/`table`) remains in use
+- View metadata field: `#969752` (`user.view-preference`)
+- View canonical values: `grid` and `table` (default when no preference exists)
+- View local compatibility key: `docSearchView` (`card`/`table`) remains in use
+- Items metadata field: `#980780` (`user.items-preference`)
+- Items canonical values: `10`, `20`, and `all` (default when no preference exists: `10`)
+- Items local key: `docSearchItemsPerPage`
 
 Behavior:
 
 - Resolves the initial desktop view before rendering search results.
-- Uses Squiz user metadata first, then the local `docSearchView` cache, then defaults to table view.
+- Resolves initial items-per-page preference before first results render.
+- Uses Squiz user metadata first, then local cache, then defaults (`table` for view, `10` for items).
 - Falls back after a bounded metadata request timeout so search loading cannot be blocked by the Matrix API.
 - Starts from `data-view="pending"` in the canonical template so the results area does not paint table before preference resolution completes.
 - Applies the view state to the existing **Show description** toggle (`grid`/card is on; table is off).
 - Keeps the **Show description** toggle synced to the current results view, so table loads with the toggle off and card loads with it on.
 - Writes changes back to metadata when user toggles view or clicks save.
+- Writes the items-per-page preference back to metadata immediately when the user changes the **Showing** dropdown.
 - Seeds user metadata asynchronously when no remote preference exists.
-- Preserves existing saved `grid`/card and `table` choices.
+- Preserves existing saved `grid`/`table` view choices and `10`/`20`/`all` item-count choices.
 - On mobile (`<=900px`), keeps UI in card mode while preserving and restoring the saved desktop preference.
 
 `src/search-page.js` imports the metadata provider before `src/js/coveo-search.js`, allowing the search initializer to await the preference before its first render.
@@ -89,8 +94,14 @@ Current preview-only content:
 
 ```html
 <div id="component_944142">
-  <p>This library contains resources specific to the Department of Corporate and Digital Development (DCDD) only.</p>
-  <p>For whole-of-government policies, go to <a href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.</p>
+  <p>
+    This library contains resources specific to the Department of Corporate and
+    Digital Development (DCDD) only.
+  </p>
+  <p>
+    For whole-of-government policies, go to
+    <a href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.
+  </p>
 </div>
 ```
 
@@ -127,6 +138,8 @@ Sorting is client-side and does not trigger a new Coveo request.
 - Runtime button copy is count-aware: `Show 1 result` for one match, otherwise `Show N results`.
 - Drawer `Clear all` resets staged controls only; results do not update until the user clicks `Show N results`.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
+- Pagination includes a right-side **Showing** dropdown with values `10`, `20`, and `All` shared by card and table views.
+- Selecting `All` shows every filtered result on one page and keeps pagination visible as a muted disabled shell (`Prev`, `1`, `Next`).
 - The results summary (for example, Showing X-Y of N results for "query") and the **Show description** toggle share one results header row: summary left, toggle right.
 - When a search query is present, only the query term in the summary suffix is bolded inside the quote marks.
 - Toggle behavior on desktop: off (`aria-pressed="false"`) = table view, on (`aria-pressed="true"`) = card/grid view with descriptions.
