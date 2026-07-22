@@ -954,9 +954,15 @@ import mockSources from "../mock/sources.json";
   var currentQuery = "";
   var initialQuery = "";
   var filterAnimTimeout = null;
+  var filterToastHideTimeout = null;
+  var filterToastCleanupTimeout = null;
   var visibleResultIds = new Set();
   var trackedSearchEvents = {};
   var currentItemsPerPage = "10";
+
+  var FILTER_TOAST_DURATION_MS = 2200;
+  var FILTER_TOAST_TRANSITION_MS = 180;
+  var FILTER_TOAST_VIEWPORT_MARGIN_PX = 24;
 
   var SORT_VALUES = {
     relevancy: true,
@@ -1208,6 +1214,105 @@ import mockSources from "../mock/sources.json";
   function isAllItemsMode() {
     return currentItemsPerPage === "all";
   }
+
+  function isMobileViewport() {
+    return window.matchMedia("(max-width: 900px)").matches;
+  }
+
+  function clearFilterToastTimers() {
+    if (filterToastHideTimeout) {
+      window.clearTimeout(filterToastHideTimeout);
+      filterToastHideTimeout = null;
+    }
+    if (filterToastCleanupTimeout) {
+      window.clearTimeout(filterToastCleanupTimeout);
+      filterToastCleanupTimeout = null;
+    }
+  }
+
+  function positionFilterToast() {
+    var $toast = $("#doc-search-filter-toast");
+    if (!$toast.length) return;
+
+    var toastEl = $toast[0];
+    var sidebarEl = document.getElementById("doc-search-sidebar");
+    var footerEl = document.querySelector(".ntgc-footer");
+    var viewportMargin = FILTER_TOAST_VIEWPORT_MARGIN_PX;
+    var left = viewportMargin;
+
+    if (sidebarEl) {
+      var sidebarRect = sidebarEl.getBoundingClientRect();
+      var maxLeft = Math.max(
+        viewportMargin,
+        window.innerWidth - toastEl.offsetWidth - viewportMargin,
+      );
+      left = Math.min(Math.max(sidebarRect.left, viewportMargin), maxLeft);
+    }
+
+    $toast.css({ left: left + "px", right: "auto", top: "auto", bottom: viewportMargin + "px" });
+
+    if (!footerEl) {
+      return;
+    }
+
+    var footerRect = footerEl.getBoundingClientRect();
+    if (footerRect.top >= window.innerHeight) {
+      return;
+    }
+
+    var top = Math.max(viewportMargin, footerRect.top - toastEl.offsetHeight - viewportMargin);
+    $toast.css({ top: top + "px", bottom: "auto" });
+  }
+
+  function hideFilterToast() {
+    var $toast = $("#doc-search-filter-toast");
+    clearFilterToastTimers();
+    if (!$toast.length) return;
+
+    $toast.removeClass("is-visible");
+    filterToastCleanupTimeout = window.setTimeout(function () {
+      $toast.css({ left: "", right: "", top: "", bottom: "" });
+      $toast.attr("hidden", true).text("");
+      filterToastCleanupTimeout = null;
+    }, FILTER_TOAST_TRANSITION_MS);
+  }
+
+  function getFilterToastMessage(resultCount) {
+    if (resultCount === 0) {
+      return "No results match your filters";
+    }
+    if (resultCount === 1) {
+      return "1 result matches your filters";
+    }
+    return resultCount + " results match your filters";
+  }
+
+  function showFilterToast(resultCount) {
+    var $toast = $("#doc-search-filter-toast");
+    if (isMobileViewport() || !$toast.length) {
+      hideFilterToast();
+      return;
+    }
+
+    clearFilterToastTimers();
+    $toast.text(getFilterToastMessage(resultCount)).attr("hidden", false);
+    positionFilterToast();
+
+    requestAnimationFrame(function () {
+      $toast.addClass("is-visible");
+    });
+
+    filterToastHideTimeout = window.setTimeout(function () {
+      hideFilterToast();
+    }, FILTER_TOAST_DURATION_MS);
+  }
+
+  $(window).on("scroll resize", function () {
+    var $toast = $("#doc-search-filter-toast");
+    if ($toast.length && !$toast.is("[hidden]")) {
+      positionFilterToast();
+    }
+  });
 
   // ── Filter building ──────────────────────────────────────────────────────────
   /**
@@ -1681,7 +1786,9 @@ import mockSources from "../mock/sources.json";
     }, 300);
   }
 
-  function applyFilters() {
+  function applyFilters(options) {
+    options = options || {};
+
     filteredResults = allResults.filter(function (r) {
       var raw = r.raw || {};
       if (activeOwnerFilter) {
@@ -1711,6 +1818,9 @@ import mockSources from "../mock/sources.json";
     toggleNoResultsState(filteredResults.length);
     syncViewToggleState();
     updateResultsSummary();
+    if (options.showToast) {
+      showFilterToast(filteredResults.length);
+    }
 
     // Compute new page 1 slice and diff against currently visible items
     var perPage = resultsPerPage();
@@ -2433,6 +2543,7 @@ import mockSources from "../mock/sources.json";
     $tbody.empty();
     $pag.empty();
     $summary.empty();
+    hideFilterToast();
     setUserMessage("");
 
     // Reset the page-links cache so a new query doesn't reuse stale results.
@@ -2639,7 +2750,7 @@ import mockSources from "../mock/sources.json";
     activeTopicFilters.clear();
     activeOwnerFilter = "";
     $('select[name="doc-search-owner"]').val("");
-    applyFilters();
+    applyFilters({ showToast: true });
   });
 
   // ── Event: checkbox filter change ────────────────────────────────────────────
@@ -2660,7 +2771,7 @@ import mockSources from "../mock/sources.json";
     } else {
       set.delete(value);
     }
-    applyFilters();
+    applyFilters({ showToast: true });
   });
 
   // ── Event: "Show all" / "Show less" facet toggle ───────────────────────────
@@ -2712,7 +2823,7 @@ import mockSources from "../mock/sources.json";
   // ── Event: owner change ───────────────────────────────────────────────────────
   $(document).on("change", 'select[name="doc-search-owner"]', function () {
     activeOwnerFilter = $(this).val();
-    applyFilters();
+    applyFilters({ showToast: true });
   });
 
   // ── Event: items-per-page change ────────────────────────────────────────────
@@ -2764,6 +2875,10 @@ import mockSources from "../mock/sources.json";
       var desktopView =
         savedView === "table" || savedView === "card" ? savedView : "table";
       var nextView = e.matches ? "card" : desktopView;
+
+      if (e.matches) {
+        hideFilterToast();
+      }
 
       if ($("#doc-search-results-col").attr("data-view") === nextView) return;
 

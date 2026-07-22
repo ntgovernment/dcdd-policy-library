@@ -309,6 +309,42 @@ tr.doc-search-row--moving {
   color: var(--clr-text-alt);
 }
 
+.doc-search-filter-toast {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 12px 16px;
+  background: var(--clr-text-default);
+  color: var(--clr-bg-default);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 24px rgba(16, 32, 64, 0.18);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  pointer-events: none;
+  z-index: 10003;
+}
+
+.doc-search-filter-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.doc-search-filter-toast[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .doc-search-filter-toast {
+    display: none !important;
+  }
+}
+
 /* Keep Matrix-injected custom content aligned with the search bar container */
 #custom-content {
   display: block;
