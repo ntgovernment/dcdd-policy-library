@@ -2503,6 +2503,67 @@ import mockSources from "../mock/sources.json";
     }
   }
 
+  // ── Feedback relocation ───────────────────────────────────────────────────
+  var feedbackObserver = null;
+  var feedbackObserverTimeoutId = null;
+  var feedbackMediaQuery = window.matchMedia("(max-width: 900px)");
+
+  function disconnectFeedbackObserver() {
+    if (feedbackObserver) {
+      feedbackObserver.disconnect();
+      feedbackObserver = null;
+    }
+    if (feedbackObserverTimeoutId) {
+      window.clearTimeout(feedbackObserverTimeoutId);
+      feedbackObserverTimeoutId = null;
+    }
+  }
+
+  /**
+   * Moves the existing Matrix feedback section to its responsive destination.
+   * @returns {boolean} Whether the feedback section and destination were found.
+   */
+  function moveFeedbackSection() {
+    var feedback = document.getElementById("feedback");
+    var target = document.getElementById(
+      feedbackMediaQuery.matches
+        ? "doc-search-results-col"
+        : "doc-search-sidebar",
+    );
+
+    if (!feedback || !target || feedback === target) return false;
+
+    if (feedback.parentNode !== target) {
+      target.appendChild(feedback);
+    }
+
+    disconnectFeedbackObserver();
+    return true;
+  }
+
+  /**
+   * Handles feedback supplied after page load by Squiz Matrix.
+   */
+  function initFeedbackRelocation() {
+    feedbackMediaQuery.addEventListener("change", moveFeedbackSection);
+
+    if (moveFeedbackSection() || typeof MutationObserver === "undefined") {
+      return;
+    }
+
+    feedbackObserver = new MutationObserver(function () {
+      moveFeedbackSection();
+    });
+    feedbackObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    feedbackObserverTimeoutId = window.setTimeout(function () {
+      disconnectFeedbackObserver();
+    }, ASSET_CONTENTS_OBSERVER_TIMEOUT_MS);
+  }
+
   // ── Core search ──────────────────────────────────────────────────────────────
   /**
    * Executes a search for the given query and renders the results.
@@ -2892,6 +2953,7 @@ import mockSources from "../mock/sources.json";
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
     initAssetContentsRelocation();
+    initFeedbackRelocation();
     $("#initialLoadingSpinner").removeClass("d-none");
 
     // Read initial state from URL params

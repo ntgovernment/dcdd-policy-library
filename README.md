@@ -110,6 +110,12 @@ The production search section template in `src/search-section.html` keeps `#cust
 At runtime, `src/js/coveo-search.js` moves child nodes from `#asset-contents` into `#custom-content`.
 This supports Squiz Matrix content that may be injected after page load.
 
+If the injected content includes `#feedback`, the same runtime moves that
+section below the desktop filters or after the mobile search pagination. The
+existing node is reparented when the viewport crosses the 900px breakpoint.
+Its first element uses a 24px top margin to override the central stylesheet's
+larger heading spacing.
+
 Implementation details:
 
 - The move is one-time and idempotent (no duplicate moves).

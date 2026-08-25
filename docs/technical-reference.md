@@ -113,6 +113,15 @@ Behaviour summary:
 - Uses a one-time completion guard to prevent duplicate moves.
 - Disconnects observers after success, with a bounded timeout fallback (30s) to prevent long-lived observers.
 
+The `#feedback` section has an additional responsive relocation step:
+
+- Above 900px, it is the final child of `#doc-search-sidebar`, below the Content owner filter.
+- At 900px and below, it is the final child of `#doc-search-results-col`, after pagination in the normal page flow.
+- A media-query change listener reparents the same node when the viewport crosses the breakpoint; the section is not cloned and is not placed in the mobile filter drawer.
+- A bounded `MutationObserver` supports feedback markup injected after page load and disconnects after the section is found.
+- Other children injected through `#asset-contents` remain in `#custom-content`.
+- `#feedback > :first-child` uses `margin-top: 24px !important` in `search-widget.css` so the central NTG heading margin does not create excessive space above the section.
+
 Operational note:
 
 - Keep `#custom-content` in the template for this runtime hook. If the container ID changes, update the selectors in `src/js/coveo-search.js`.

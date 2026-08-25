@@ -822,6 +822,16 @@ tr.doc-search-row--moving {
   padding-top: 12px; /* align with results header top */
 }
 
+.doc-search-sidebar > #feedback {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#feedback > :first-child {
+  margin-top: 24px !important;
+}
+
 /* ── Sidebar Filters heading ──────────────────────────────────────────────── */
 .doc-search-sidebar__header {
   display: flex;
@@ -1439,6 +1449,12 @@ tr.doc-search-row--moving {
 
   .doc-search-items-control {
     justify-content: center;
+  }
+
+  .doc-search-results-col > #feedback {
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 24px;
   }
 }
 
