@@ -1004,6 +1004,7 @@ tr.doc-search-row--moving {
 /* ── No results state ─────────────────────────────────────────────────────── */
 .doc-search-no-results {
   width: 100%;
+  box-sizing: border-box;
   padding: 32px;
   background: var(--clr-bg-default, white);
   border-bottom: 1px solid var(--clr-border-subtle, #d0e0e0);

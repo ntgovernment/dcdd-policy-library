@@ -1816,6 +1816,7 @@ import mockSources from "../mock/sources.json";
 
     // Toggle UI elements based on whether results exist
     toggleNoResultsState(filteredResults.length);
+    setUserMessage(filteredResults.length === 0 ? buildNoResultsHtml(currentQuery) : "");
     syncViewToggleState();
     updateResultsSummary();
     if (options.showToast) {
@@ -2123,22 +2124,6 @@ import mockSources from "../mock/sources.json";
     });
   }
 
-  // ── No results state ──────────────────────────────────────────────────────────
-  /**
-   * Toggles visibility of filter controls and sidebar based on result count.
-   * When no results are found, hides: mobile filter button, results header
-   * (summary + controls), table wrapper, sidebar, and pagination.
-   * @param {number} resultCount  Total filtered result count.
-   */
-  function toggleNoResultsState(resultCount) {
-    var noResults = resultCount === 0;
-    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
-    $(".doc-search-results-header").toggleClass("d-none", noResults);
-    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
-    $("#doc-search-sidebar").toggleClass("d-none", noResults);
-    $("#doc-search-pagination-row").toggleClass("d-none", noResults);
-  }
-
   // ── Results summary line ──────────────────────────────────────────────────────
   /**
    * Updates #doc-search-results-summary with "Showing X–Y of Z results" text,
@@ -2326,9 +2311,8 @@ import mockSources from "../mock/sources.json";
   }
 
   /**
-   * Toggles visibility of filter controls and sidebar based on result count.
-   * When no results are found, hides: mobile filter button, results header
-   * (summary + controls), table wrapper, sidebar, drawer, and pagination.
+   * Toggles result-specific controls based on result count while keeping the
+   * desktop filter sidebar available to refine a zero-result selection.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
@@ -2336,8 +2320,8 @@ import mockSources from "../mock/sources.json";
     $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
     $(".doc-search-results-header").toggleClass("d-none", noResults);
     $(".doc-search-table-wrap").toggleClass("d-none", noResults);
-    $("#doc-search-sidebar").toggleClass("d-none", noResults);
     $("#doc-search-pagination").toggleClass("d-none", noResults);
+    $("#doc-search-pagination-row").toggleClass("d-none", noResults);
   }
 
   // ── HTML helpers ─────────────────────────────────────────────────────────────
