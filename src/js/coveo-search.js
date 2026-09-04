@@ -1,3 +1,5 @@
+import mockSources from "../mock/sources.json";
+
 /**
  * coveo-search.js — DCDD Document Search: Coveo REST API integration
  *
@@ -20,7 +22,7 @@
  * Production:  https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query
  *   Squiz Matrix page asset — same-origin (internal.nt.gov.au); returns the
  *   Coveo JSON response directly. Only one param is accepted:
- *     ?searchterm=<encoded query>   — omit or empty → returns all documents
+ *     ?policyterm=<encoded query>   — omit or empty → returns all documents
  *   Do NOT use the ?a=<assetId> proxy shorthand — that resolves to the
  *   document-search page itself and returns HTML, not JSON.
  * Dev/local:   /src/mock/coveo-search-rest-api-query.json  (static fixture)
@@ -151,13 +153,12 @@
  *   .doc-search-show-all                "Show all (n)" toggle button; data-facet-container = containerId
  *
  * ── URL PARAMETERS READ ON INIT ──────────────────────────────────────────────
- *   ?searchterm=<string>  pre-fills #search and immediately runs a search
+ *   ?policyterm=<string>  pre-fills #search and immediately runs a search
  *   ?sort=<string>        pre-selects sort; must match a select option value:
  *                           "relevancy" | "date descending" | "alpha ascending" | "alpha descending"
  *
  * ── KEY CONSTANTS ────────────────────────────────────────────────────────────
- *   RESULTS_PER_PAGE_CARD   10      — cards shown per page
- *   RESULTS_PER_PAGE_TABLE  15      — rows shown per page in table view
+ *   RESULTS_PER_PAGE_DEFAULT 10      — default results shown per page
  *   MAX_FACET_VISIBLE        7      — facet items visible before "Show all"
  *   MATRIX_API_BASE         String  — Squiz Matrix Management API base URL
  *   MATRIX_API_TOKEN        String  — Bearer token for the Management API
@@ -201,8 +202,8 @@
  *
  * ── SEARCH FLOW ──────────────────────────────────────────────────────────────
  * On form submit: the handler redirects to
- *   window.location.pathname + "?searchterm=" + encodeURIComponent(query)
- * This triggers a fresh page load, which then reads ?searchterm= on init.
+ *   window.location.pathname + "?policyterm=" + encodeURIComponent(query)
+ * This triggers a fresh page load, which then reads ?policyterm= on init.
  * runSearch() is therefore always driven by the URL parameter, never called
  * directly from the submit handler.
  *
@@ -244,40 +245,7 @@
     ["localhost", "127.0.0.1"].includes(window.location.hostname) ||
     window.location.hostname.endsWith(".github.io");
 
-  function shouldEnforcePageLinkPrefixFilter() {
-    return window.location.hostname === "internal.nt.gov.au";
-  }
-
-  // Base prefix = protocol + host + first path segment, e.g.
-  // https://internal.nt.gov.au/dcdd
-  function getBasePrefixFromUrlLike(urlLike) {
-    if (!urlLike) return "";
-    try {
-      var parsed = new URL(urlLike, window.location.origin);
-      var firstSegment = parsed.pathname.split("/").filter(Boolean)[0];
-      return (
-        parsed.protocol +
-        "//" +
-        parsed.host +
-        (firstSegment ? "/" + firstSegment : "")
-      ).toLowerCase();
-    } catch (e) {
-      return "";
-    }
-  }
-
-  function getCurrentPageBasePrefix() {
-    return getBasePrefixFromUrlLike(window.location.href);
-  }
-
-  function doesPageLinkMatchCurrentBasePrefix(path) {
-    var currentPrefix = getCurrentPageBasePrefix();
-    var linkPrefix = getBasePrefixFromUrlLike(path);
-    if (!currentPrefix || !linkPrefix) return false;
-    return currentPrefix === linkPrefix;
-  }
-
-  function shouldBypassPageLinksStorage() {
+  function shouldBypassSharedSources() {
     return /\/_(?:nocache|recache)(?:\/|$|\?|#)/i.test(window.location.href);
   }
 
@@ -295,6 +263,19 @@
   var MATRIX_MOCK_URL = "./src/mock/matrix-asset-links.json";
   var matrixMockCache = null;
 
+  var SOURCES_PRIMARY_URL =
+    "https://internal.nt.gov.au/__data/assets/text_file/0011/979085/sources.json";
+  var SOURCES_FALLBACK_URL =
+    "https://internal.nt.gov.au/__data/assets/file/0010/979093/sources-fallback.json";
+  var SOURCES_UPDATER_URL =
+    "https://internal.nt.gov.au/dcdd/policy-library/configuration/listings/source-updater.js";
+  var SOURCES_JSAPI_KEY = "1603940920";
+  var SOURCES_ASSET_ID = "979085";
+  var sharedSourcesPromise = null;
+  var recachedSources = {};
+  var recacheResolutionFailures = {};
+  var recachePublished = false;
+
   // Per-page-load cache of resolved page-link Promises, keyed by assetId.
   // Both card and table renders call resolvePageLinks(assetId), which returns
   // the cached Promise on subsequent calls — so pagination, sorting, filtering,
@@ -302,45 +283,192 @@
   // Cleared at the start of every runSearch() to avoid stale data across queries.
   var pageLinksCache = {};
 
-  // localStorage key prefix for persisting resolved page-link arrays across
-  // page loads. Each value is a JSON-stringified Array<{name, path}>.
-  var PAGE_LINKS_STORAGE_PREFIX = "dcdd-page-links:";
-
-  /**
-   * Reads a previously resolved page-link array for an assetId from
-   * localStorage. Returns null when no entry exists, when localStorage is
-   * unavailable (e.g. private browsing), or when the stored value is invalid.
-   * @param {string} assetId
-   * @returns {Array<{name: string, path: string}>|null}
-   */
-  function loadPageLinksFromStorage(assetId) {
-    try {
-      var raw = window.localStorage.getItem(
-        PAGE_LINKS_STORAGE_PREFIX + assetId,
-      );
-      if (raw == null) return null;
-      var parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : null;
-    } catch (e) {
-      return null;
+  function validateSourcesMap(data) {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("Sources data must be an object");
     }
+
+    Object.keys(data).forEach(function (assetId) {
+      if (!/^\d+$/.test(assetId) || !Array.isArray(data[assetId])) {
+        throw new Error("Invalid sources entry for asset " + assetId);
+      }
+      data[assetId].forEach(function (source) {
+        if (
+          !source ||
+          typeof source !== "object" ||
+          typeof source.name !== "string" ||
+          typeof source.path !== "string"
+        ) {
+          throw new Error("Invalid source link for asset " + assetId);
+        }
+      });
+    });
+
+    return data;
   }
 
-  /**
-   * Persists a resolved page-link array for an assetId to localStorage.
-   * Silently no-ops when localStorage is unavailable or the quota is exceeded.
-   * @param {string} assetId
-   * @param {Array<{name: string, path: string}>} pageLinks
-   */
-  function savePageLinksToStorage(assetId, pageLinks) {
-    try {
-      window.localStorage.setItem(
-        PAGE_LINKS_STORAGE_PREFIX + assetId,
-        JSON.stringify(pageLinks),
-      );
-    } catch (e) {
-      /* localStorage disabled or full — skip persistence */
+  function fetchSourcesMap(url, sourceName) {
+    return fetch(url, { cache: "no-store" }).then(function (response) {
+      if (!response.ok) {
+        throw new Error(sourceName + " request failed: " + response.status);
+      }
+      return response.json().then(function (data) {
+        return { data: validateSourcesMap(data), source: sourceName };
+      });
+    });
+  }
+
+  function loadSharedSources() {
+    if (sharedSourcesPromise) return sharedSourcesPromise;
+
+    if (isDev) {
+      sharedSourcesPromise = Promise.resolve({
+        data: validateSourcesMap(mockSources),
+        source: "mock",
+      });
+      return sharedSourcesPromise;
     }
+
+    sharedSourcesPromise = fetchSourcesMap(SOURCES_PRIMARY_URL, "primary")
+      .catch(function (primaryError) {
+        console.warn("[DCDD] Primary sources unavailable", primaryError);
+        return fetchSourcesMap(SOURCES_FALLBACK_URL, "fallback");
+      })
+      .catch(function (fallbackError) {
+        console.warn(
+          "[DCDD] Squiz sources unavailable; using bundled mock data",
+          fallbackError,
+        );
+        return {
+          data: validateSourcesMap(mockSources),
+          source: "mock",
+        };
+      });
+
+    return sharedSourcesPromise;
+  }
+
+  function sortSourcesMap(sources) {
+    var sorted = {};
+    Object.keys(sources)
+      .sort(function (a, b) {
+        return Number(a) - Number(b);
+      })
+      .forEach(function (assetId) {
+        sorted[assetId] = sources[assetId];
+      });
+    return sorted;
+  }
+
+  function parseJsApiResponse(response, operation) {
+    return response.text().then(function (responseText) {
+      var result = null;
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch (e) {
+        /* Include the raw response in the error below. */
+      }
+
+      if (!response.ok || !result || result.success === false || result.error) {
+        var detail = result
+          ? result.error || JSON.stringify(result)
+          : responseText.slice(0, 500);
+        throw new Error(
+          operation + " failed (HTTP " + response.status + "): " + detail,
+        );
+      }
+      return result;
+    });
+  }
+
+  function getSourcesNonce() {
+    var tokenElement = document.getElementById("token");
+    if (tokenElement && tokenElement.value.trim()) {
+      return Promise.resolve(tokenElement.value.trim());
+    }
+
+    return fetch(SOURCES_UPDATER_URL + "?SQ_ACTION=getToken", {
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Nonce request failed: " + response.status);
+        }
+        return response.text();
+      })
+      .then(function (nonceToken) {
+        var trimmedToken = nonceToken.trim();
+        if (!trimmedToken) {
+          throw new Error("Nonce request returned an empty token");
+        }
+        return trimmedToken;
+      });
+  }
+
+  function callSourcesJsApi(operation, params, nonceToken) {
+    var body = params || {};
+    body.type = operation;
+    body.nonce_token = nonceToken;
+
+    return fetch(SOURCES_UPDATER_URL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-SquizMatrix-JSAPI-Key": SOURCES_JSAPI_KEY,
+      },
+      body: JSON.stringify(body),
+    }).then(function (response) {
+      return parseJsApiResponse(response, operation);
+    });
+  }
+
+  function publishSources(sources) {
+    var nonceToken = "";
+    var lockAcquired = false;
+    var writeError = null;
+
+    return getSourcesNonce()
+      .then(function (token) {
+        nonceToken = token;
+        return callSourcesJsApi(
+          "acquireLock",
+          {
+            id: SOURCES_ASSET_ID,
+            screen: "attributes",
+            dependants_only: 0,
+            force_acquire: 1,
+          },
+          nonceToken,
+        );
+      })
+      .then(function () {
+        lockAcquired = true;
+        return callSourcesJsApi(
+          "setContentOfEditableFileAsset",
+          {
+            id: SOURCES_ASSET_ID,
+            content: JSON.stringify(sortSourcesMap(sources)),
+          },
+          nonceToken,
+        );
+      })
+      .catch(function (error) {
+        writeError = error;
+      })
+      .then(function () {
+        if (!lockAcquired) {
+          throw writeError;
+        }
+        return callSourcesJsApi(
+          "releaseLock",
+          { id: SOURCES_ASSET_ID, screen: "attributes" },
+          nonceToken,
+        ).then(function () {
+          if (writeError) throw writeError;
+        });
+      });
   }
 
   /**
@@ -369,7 +497,7 @@
    * @param {string} assetId  The Squiz Matrix asset ID (raw.assetassetid).
    * @returns {Promise<Array>}  Array of link objects.
    */
-  function fetchPageLinks(assetId) {
+  function fetchPageLinks(assetId, rootAssetId, stage) {
     if (isDev) {
       if (matrixMockCache) {
         return Promise.resolve(matrixMockCache[assetId] || []);
@@ -390,7 +518,14 @@
       .then(function (data) {
         return Array.isArray(data) ? data : [];
       })
-      .catch(function () {
+      .catch(function (error) {
+        if (rootAssetId && shouldLogRecachePageLinks()) {
+          recacheResolutionFailures[rootAssetId] = {
+            stage: stage || "links",
+            relatedAssetId: assetId,
+            error: error.message,
+          };
+        }
         return [];
       });
   }
@@ -471,30 +606,34 @@
   function resolvePageLinks(assetId) {
     if (!assetId) return Promise.resolve([]);
     if (pageLinksCache[assetId]) return pageLinksCache[assetId];
-    var bypassStorage = shouldBypassPageLinksStorage();
+    var useLiveSources = shouldBypassSharedSources() && !isDev;
 
-    // localStorage hit (production only — in dev the static mock JSON is
-    // already cached in memory by fetchPageLinks(), so persisting it adds
-    // no benefit and would clutter the developer's storage).
-    if (!isDev && !bypassStorage) {
-      var stored = loadPageLinksFromStorage(assetId);
-      if (stored) {
-        var resolvedPromise = Promise.resolve(stored);
-        pageLinksCache[assetId] = resolvedPromise;
-        return resolvedPromise;
-      }
-    }
+    var promise = useLiveSources
+      ? resolvePageLinksUncached(assetId).then(function (pageLinks) {
+          if (shouldLogRecachePageLinks()) {
+            if (!recacheResolutionFailures[assetId]) {
+              recachedSources[assetId] = pageLinks;
+            }
+          }
+          return pageLinks;
+        })
+      : loadSharedSources().then(function (sourcesState) {
+          return Object.prototype.hasOwnProperty.call(
+            sourcesState.data,
+            assetId,
+          )
+            ? sourcesState.data[assetId]
+            : [];
+        });
 
-    var promise = resolvePageLinksUncached(assetId).then(function (pageLinks) {
-      if (shouldLogRecachePageLinks()) {
+    if (shouldLogRecachePageLinks()) {
+      promise.then(function (pageLinks) {
         console.log("[DCDD] /_recache page-links first-pass", {
           assetId: assetId,
           pageLinks: pageLinks,
         });
-      }
-      if (!isDev && !bypassStorage) savePageLinksToStorage(assetId, pageLinks);
-      return pageLinks;
-    });
+      });
+    }
     pageLinksCache[assetId] = promise;
     return promise;
   }
@@ -510,14 +649,57 @@
    * @param {Array} results  Coveo result objects (e.g. originalResults).
    */
   function prefetchPageLinks(results) {
-    if (!Array.isArray(results)) return;
+    if (!Array.isArray(results)) return Promise.resolve([]);
+    var promises = [];
+    var seen = {};
     results.forEach(function (r) {
       var id = (r.raw || {}).assetassetid;
-      if (id && !pageLinksCache[id]) {
-        // Fire and forget — the call populates the cache via resolvePageLinks().
-        resolvePageLinks(id);
+      if (id && !seen[id]) {
+        seen[id] = true;
+        promises.push(resolvePageLinks(id));
       }
     });
+    return Promise.all(promises);
+  }
+
+  function publishRecachedSources(prefetchPromise) {
+    if (!shouldLogRecachePageLinks() || isDev || recachePublished) return;
+    recachePublished = true;
+
+    Promise.all([loadSharedSources(), prefetchPromise])
+      .then(function (values) {
+        var sourcesState = values[0];
+        if (sourcesState.source === "mock") {
+          throw new Error(
+            "Shared Squiz sources are unavailable; mock data will not be published",
+          );
+        }
+
+        var mergedSources = {};
+        Object.keys(sourcesState.data).forEach(function (assetId) {
+          mergedSources[assetId] = sourcesState.data[assetId];
+        });
+        Object.keys(recachedSources).forEach(function (assetId) {
+          mergedSources[assetId] = recachedSources[assetId];
+        });
+        var failedAssetIds = Object.keys(recacheResolutionFailures);
+        if (failedAssetIds.length) {
+          console.warn(
+            "[DCDD] Retaining existing sources for failed recache assets",
+            recacheResolutionFailures,
+          );
+        }
+        return publishSources(mergedSources);
+      })
+      .then(function () {
+        console.log("[DCDD] Shared sources updated", {
+          updatedAssets: Object.keys(recachedSources).length,
+          retainedAssets: Object.keys(recacheResolutionFailures).length,
+        });
+      })
+      .catch(function (error) {
+        console.error("[DCDD] Shared sources update failed", error);
+      });
   }
 
   /**
@@ -527,103 +709,123 @@
    * @returns {Promise<Array<{name: string, path: string}>>}
    */
   function resolvePageLinksUncached(assetId) {
-    return fetchPageLinks(assetId).then(function (links) {
-      var refIds = getPageMajorIds(links);
-      if (!refIds.length) return [];
-      return Promise.all(
-        refIds.map(function (id) {
-          return fetchPageLinks(id).then(function (childLinks) {
-            var hiddenIds = childLinks
-              .filter(function (l) {
-                return l.link_type === "hidden";
-              })
-              .map(function (l) {
-                return l.major_id;
-              });
-            var assetFetches = hiddenIds.length
-              ? Promise.all(
-                  hiddenIds.map(function (hid) {
-                    return (
-                      isDev
-                        ? Promise.resolve({
-                            id: hid,
-                            name: "(mock asset " + hid + ")",
+    return fetchPageLinks(assetId, assetId, "document links").then(
+      function (links) {
+        var refIds = getPageMajorIds(links);
+        if (!refIds.length) return [];
+        return Promise.all(
+          refIds.map(function (id) {
+            return fetchPageLinks(id, assetId, "reference links").then(
+              function (childLinks) {
+                var hiddenIds = childLinks
+                  .filter(function (l) {
+                    return l.link_type === "hidden";
+                  })
+                  .map(function (l) {
+                    return l.major_id;
+                  });
+                var assetFetches = hiddenIds.length
+                  ? Promise.all(
+                      hiddenIds.map(function (hid) {
+                        return (
+                          isDev
+                            ? Promise.resolve({
+                                id: hid,
+                                name: "(mock asset " + hid + ")",
+                              })
+                            : matrixApiFetch("assets/" + hid)
+                        )
+                          .then(function (asset) {
+                            return { major_id: hid, asset: asset };
                           })
-                        : matrixApiFetch("assets/" + hid)
+                          .catch(function (error) {
+                            if (shouldLogRecachePageLinks()) {
+                              recacheResolutionFailures[assetId] = {
+                                stage: "hidden asset",
+                                relatedAssetId: hid,
+                                error: error.message,
+                              };
+                            }
+                            return { major_id: hid, asset: null };
+                          });
+                      }),
                     )
-                      .then(function (asset) {
-                        return { major_id: hid, asset: asset };
-                      })
-                      .catch(function () {
-                        return { major_id: hid, asset: null };
-                      });
-                  }),
-                )
-              : Promise.resolve([]);
-            return assetFetches.then(function (assets) {
-              var pageContentAssets = assets.filter(function (a) {
-                return (
-                  a.asset &&
-                  a.asset.attributes &&
-                  a.asset.attributes.name === "Page Contents"
-                );
-              });
-              var parentFetches = pageContentAssets.length
-                ? Promise.all(
-                    pageContentAssets.map(function (a) {
-                      var parentId = String(Number(a.major_id) - 1);
-                      return (
-                        isDev
-                          ? Promise.resolve({
-                              id: parentId,
-                              name: "(mock asset " + parentId + ")",
+                  : Promise.resolve([]);
+                return assetFetches.then(function (assets) {
+                  var pageContentAssets = assets.filter(function (a) {
+                    return (
+                      a.asset &&
+                      a.asset.attributes &&
+                      a.asset.attributes.name === "Page Contents"
+                    );
+                  });
+                  var parentFetches = pageContentAssets.length
+                    ? Promise.all(
+                        pageContentAssets.map(function (a) {
+                          var parentId = String(Number(a.major_id) - 1);
+                          return (
+                            isDev
+                              ? Promise.resolve({
+                                  id: parentId,
+                                  name: "(mock asset " + parentId + ")",
+                                })
+                              : matrixApiFetch("assets/" + parentId)
+                          )
+                            .then(function (asset) {
+                              return { major_id: parentId, asset: asset };
                             })
-                          : matrixApiFetch("assets/" + parentId)
+                            .catch(function (error) {
+                              if (shouldLogRecachePageLinks()) {
+                                recacheResolutionFailures[assetId] = {
+                                  stage: "parent asset",
+                                  relatedAssetId: parentId,
+                                  error: error.message,
+                                };
+                              }
+                              return { major_id: parentId, asset: null };
+                            });
+                        }),
                       )
-                        .then(function (asset) {
-                          return { major_id: parentId, asset: asset };
-                        })
-                        .catch(function () {
-                          return { major_id: parentId, asset: null };
-                        });
-                    }),
-                  )
-                : Promise.resolve([]);
-              return parentFetches.then(function (parents) {
-                return { page_contents_parents: parents };
-              });
+                    : Promise.resolve([]);
+                  return parentFetches.then(function (parents) {
+                    return { page_contents_parents: parents };
+                  });
+                });
+              },
+            );
+          }),
+        ).then(function (results) {
+          var seen = {};
+          var out = [];
+          results.forEach(function (r) {
+            (r.page_contents_parents || []).forEach(function (p) {
+              if (
+                p.asset &&
+                p.asset.attributes &&
+                p.asset.urls &&
+                p.asset.urls.length
+              ) {
+                var name =
+                  p.asset.attributes.short_name ||
+                  p.asset.attributes.name ||
+                  "";
+                var path = p.asset.urls[0].path || "";
+                var lowerPath = path.toLowerCase();
+                var isExcluded =
+                  lowerPath.indexOf("/news/") !== -1 ||
+                  lowerPath.indexOf("/dev/") !== -1 ||
+                  lowerPath.indexOf("archive") !== -1;
+                if (name && path && !isExcluded && !seen[path]) {
+                  seen[path] = true;
+                  out.push({ name: name, path: path });
+                }
+              }
             });
           });
-        }),
-      ).then(function (results) {
-        var seen = {};
-        var out = [];
-        results.forEach(function (r) {
-          (r.page_contents_parents || []).forEach(function (p) {
-            if (
-              p.asset &&
-              p.asset.attributes &&
-              p.asset.urls &&
-              p.asset.urls.length
-            ) {
-              var name =
-                p.asset.attributes.short_name || p.asset.attributes.name || "";
-              var path = p.asset.urls[0].path || "";
-              var lowerPath = path.toLowerCase();
-              var isExcluded =
-                lowerPath.indexOf("/news/") !== -1 ||
-                lowerPath.indexOf("/dev/") !== -1 ||
-                lowerPath.indexOf("archive") !== -1;
-              if (name && path && !isExcluded && !seen[path]) {
-                seen[path] = true;
-                out.push({ name: name, path: path });
-              }
-            }
-          });
+          return out;
         });
-        return out;
-      });
-    });
+      },
+    );
   }
 
   /**
@@ -697,54 +899,6 @@
   }
 
   /**
-   * Filters rendered page-link <a> elements in a container and rewrites the
-   * container HTML using only kept links so separator commas stay correct.
-   * @param {jQuery} $container  jQuery element containing <a> links to filter
-   * @returns {number}  Count of links remaining after filtering.
-   */
-  function filterPageLinksByPrefix($container) {
-    var $links = $container.find("a");
-    if (!$links.length) return 0;
-    var ntgcentralPrefix = "https://ntgcentral.nt.gov.au/";
-
-    if (!shouldEnforcePageLinkPrefixFilter()) {
-      return $links.length;
-    }
-
-    var currentPrefix = getCurrentPageBasePrefix();
-    if (!currentPrefix) {
-      return $links.length;
-    }
-
-    var kept = [];
-    $links.each(function () {
-      var href = $(this).attr("href");
-      if (!href) return;
-      if (href.toLowerCase().indexOf(ntgcentralPrefix) === 0) {
-        kept.push(this);
-        return;
-      }
-      var linkPrefix = getBasePrefixFromUrlLike(href);
-      if (linkPrefix === currentPrefix) {
-        kept.push(this);
-      }
-    });
-
-    if (!kept.length) {
-      $container.empty();
-      return 0;
-    }
-
-    var html = kept
-      .map(function (link) {
-        return $("<div>").append($(link).clone()).html();
-      })
-      .join(", ");
-    $container.html(html);
-    return kept.length;
-  }
-
-  /**
    * When running on dev/GitHub Pages, rewrites an intranet collection URL
    * (https://internal.nt.gov.au/.../collections/<slug>) to a local relative
    * path (collection/<slug>.html). Returns the URL unchanged in production.
@@ -773,8 +927,12 @@
     return fileMeta ? base + "#:~:text=" + encodeURIComponent(fileMeta) : base;
   }
 
-  var RESULTS_PER_PAGE_CARD = 10;
-  var RESULTS_PER_PAGE_TABLE = 15;
+  var RESULTS_PER_PAGE_DEFAULT = 10;
+  var ITEMS_PER_PAGE_VALUES = {
+    10: true,
+    20: true,
+    all: true,
+  };
   var MAX_FACET_VISIBLE = 7;
 
   var SEARCH_ANALYTICS_EVENTS = {
@@ -796,8 +954,15 @@
   var currentQuery = "";
   var initialQuery = "";
   var filterAnimTimeout = null;
+  var filterToastHideTimeout = null;
+  var filterToastCleanupTimeout = null;
   var visibleResultIds = new Set();
   var trackedSearchEvents = {};
+  var currentItemsPerPage = "10";
+
+  var FILTER_TOAST_DURATION_MS = 2200;
+  var FILTER_TOAST_TRANSITION_MS = 180;
+  var FILTER_TOAST_VIEWPORT_MARGIN_PX = 24;
 
   var SORT_VALUES = {
     relevancy: true,
@@ -810,10 +975,10 @@
   /**
    * Builds the Coveo search endpoint URL for the given query string.
    * @param {string} query  Raw (unencoded) search term.
-   * @returns {string} Full URL with ?searchterm= query parameter.
+   * @returns {string} Full URL with ?policyterm= query parameter.
    */
   function buildCoveoUrl(query) {
-    return COVEO_BASE_URL + "?searchterm=" + encodeURIComponent(query);
+    return COVEO_BASE_URL + "?policyterm=" + encodeURIComponent(query);
   }
 
   function trackAnalyticsEvent(eventName, params) {
@@ -860,7 +1025,7 @@
   /**
    * Returns the value of a URL query parameter from the current page URL,
    * or null when the parameter is absent.
-   * @param {string} name  Parameter name (e.g. "searchterm", "sort").
+   * @param {string} name  Parameter name (e.g. "policyterm", "sort").
    * @returns {string|null}
    */
   function getUrlParam(name) {
@@ -1017,14 +1182,141 @@
     return $("#doc-search-results-col").attr("data-view") === "table";
   }
 
+  /** Keeps the Show description toggle aligned with the current results view. */
+  function syncViewToggleState() {
+    $("#doc-search-view-toggle").attr(
+      "aria-pressed",
+      isTableView() ? "false" : "true",
+    );
+  }
+
   /** Returns the correct results-per-page constant for the active view. */
   function resultsPerPage() {
-    return isTableView() ? RESULTS_PER_PAGE_TABLE : RESULTS_PER_PAGE_CARD;
+    if (currentItemsPerPage === "20") {
+      return 20;
+    }
+    if (currentItemsPerPage === "all") {
+      return Math.max(filteredResults.length, 1);
+    }
+    return RESULTS_PER_PAGE_DEFAULT;
   }
+
+  function normalizeItemsPerPage(value) {
+    var normalized = String(value || "").toLowerCase();
+    return ITEMS_PER_PAGE_VALUES[normalized] ? normalized : "10";
+  }
+
+  function setItemsPerPageSelection(value) {
+    currentItemsPerPage = normalizeItemsPerPage(value);
+    $("#doc-search-items-per-page").val(currentItemsPerPage);
+  }
+
+  function isAllItemsMode() {
+    return currentItemsPerPage === "all";
+  }
+
+  function isMobileViewport() {
+    return window.matchMedia("(max-width: 900px)").matches;
+  }
+
+  function clearFilterToastTimers() {
+    if (filterToastHideTimeout) {
+      window.clearTimeout(filterToastHideTimeout);
+      filterToastHideTimeout = null;
+    }
+    if (filterToastCleanupTimeout) {
+      window.clearTimeout(filterToastCleanupTimeout);
+      filterToastCleanupTimeout = null;
+    }
+  }
+
+  function positionFilterToast() {
+    var $toast = $("#doc-search-filter-toast");
+    if (!$toast.length) return;
+
+    var toastEl = $toast[0];
+    var sidebarEl = document.getElementById("doc-search-sidebar");
+    var footerEl = document.querySelector(".ntgc-footer");
+    var viewportMargin = FILTER_TOAST_VIEWPORT_MARGIN_PX;
+    var left = viewportMargin;
+
+    if (sidebarEl) {
+      var sidebarRect = sidebarEl.getBoundingClientRect();
+      var maxLeft = Math.max(
+        viewportMargin,
+        window.innerWidth - toastEl.offsetWidth - viewportMargin,
+      );
+      left = Math.min(Math.max(sidebarRect.left, viewportMargin), maxLeft);
+    }
+
+    $toast.css({ left: left + "px", right: "auto", top: "auto", bottom: viewportMargin + "px" });
+
+    if (!footerEl) {
+      return;
+    }
+
+    var footerRect = footerEl.getBoundingClientRect();
+    if (footerRect.top >= window.innerHeight) {
+      return;
+    }
+
+    var top = Math.max(viewportMargin, footerRect.top - toastEl.offsetHeight - viewportMargin);
+    $toast.css({ top: top + "px", bottom: "auto" });
+  }
+
+  function hideFilterToast() {
+    var $toast = $("#doc-search-filter-toast");
+    clearFilterToastTimers();
+    if (!$toast.length) return;
+
+    $toast.removeClass("is-visible");
+    filterToastCleanupTimeout = window.setTimeout(function () {
+      $toast.css({ left: "", right: "", top: "", bottom: "" });
+      $toast.attr("hidden", true).text("");
+      filterToastCleanupTimeout = null;
+    }, FILTER_TOAST_TRANSITION_MS);
+  }
+
+  function getFilterToastMessage(resultCount) {
+    if (resultCount === 0) {
+      return "No results match your filters";
+    }
+    if (resultCount === 1) {
+      return "1 result matches your filters";
+    }
+    return resultCount + " results match your filters";
+  }
+
+  function showFilterToast(resultCount) {
+    var $toast = $("#doc-search-filter-toast");
+    if (isMobileViewport() || !$toast.length) {
+      hideFilterToast();
+      return;
+    }
+
+    clearFilterToastTimers();
+    $toast.text(getFilterToastMessage(resultCount)).attr("hidden", false);
+    positionFilterToast();
+
+    requestAnimationFrame(function () {
+      $toast.addClass("is-visible");
+    });
+
+    filterToastHideTimeout = window.setTimeout(function () {
+      hideFilterToast();
+    }, FILTER_TOAST_DURATION_MS);
+  }
+
+  $(window).on("scroll resize", function () {
+    var $toast = $("#doc-search-filter-toast");
+    if ($toast.length && !$toast.is("[hidden]")) {
+      positionFilterToast();
+    }
+  });
 
   // ── Filter building ──────────────────────────────────────────────────────────
   /**
-  * Rebuilds both the Type and Topic facet lists.
+   * Rebuilds both the Type and Topic facet lists.
    * Delegates to buildFacet() for each facet field.
    *
    * `results` is used only to compute per-value counts — it should be allResults
@@ -1078,7 +1370,7 @@
    * Populates a facet <ul> with one checkbox item per known value for `field`.
    *
    * Value list  — derived from masterResults (the full corpus), so the same
-  *               set of Type / Topic options is always rendered regardless
+   *               set of Type / Topic options is always rendered regardless
    *               of how narrow the active search query is.
    * Counts      — derived from `results` (typically allResults for the current
    *               query), reflecting how many documents in the current result
@@ -1095,15 +1387,15 @@
    *
    * Used by buildFilters() (sidebar) and buildDrawerFilters() (mobile drawer).
    *
-  * Multi-value fields: topic values may arrive comma-delimited or
+   * Multi-value fields: topic values may arrive comma-delimited or
    * semicolon-delimited (e.g. "Fraud and corruption, Finance and travel" or
-  * "Fraud and corruption; Finance and travel"). splitTopicValues() applies
+   * "Fraud and corruption; Finance and travel"). splitTopicValues() applies
    * a capitalization rule for comma separation: split only when the next token
    * starts with an uppercase letter. Labels like "Conduct, integrity and risk"
    * remain intact.
    *
    * @param {Array}  results      Current result set used solely for counting (typically allResults).
-  * @param {string} field        result.raw property name (e.g. "resourcedoctype", "topic").
+   * @param {string} field        result.raw property name (e.g. "resourcedoctype", "topic").
    * @param {string} containerId  jQuery selector for the target <ul> element.
    * @param {Set}    activeSet    Currently active filter values; matching checkboxes are rendered checked.
    */
@@ -1127,11 +1419,11 @@
   }
 
   /**
-  * Splits topic values into trimmed, non-empty tokens.
+   * Splits topic values into trimmed, non-empty tokens.
    * Supports semicolon and comma delimiters for multi-value records.
    * For comma-delimited values, it only splits at commas where the next
    * non-space character is uppercase, so labels such as
-  * "Conduct, integrity and risk" remain a single topic.
+   * "Conduct, integrity and risk" remain a single topic.
    * @param {string} val
    * @returns {string[]}
    */
@@ -1193,9 +1485,7 @@
       var val = (r.raw || {})[field];
       if (val) {
         var facetValues =
-          field === "topic"
-            ? splitTopicValues(val)
-            : splitFieldValues(val);
+          field === "topic" ? splitTopicValues(val) : splitFieldValues(val);
         facetValues.forEach(function (v) {
           counts[v] = (counts[v] || 0) + 1;
         });
@@ -1208,9 +1498,7 @@
       var val = (r.raw || {})[field];
       if (val) {
         var masterValues =
-          field === "topic"
-            ? splitTopicValues(val)
-            : splitFieldValues(val);
+          field === "topic" ? splitTopicValues(val) : splitFieldValues(val);
         masterValues.forEach(function (v) {
           masterKeys[v] = true;
         });
@@ -1498,7 +1786,9 @@
     }, 300);
   }
 
-  function applyFilters() {
+  function applyFilters(options) {
+    options = options || {};
+
     filteredResults = allResults.filter(function (r) {
       var raw = r.raw || {};
       if (activeOwnerFilter) {
@@ -1526,7 +1816,12 @@
 
     // Toggle UI elements based on whether results exist
     toggleNoResultsState(filteredResults.length);
+    setUserMessage(filteredResults.length === 0 ? buildNoResultsHtml(currentQuery) : "");
+    syncViewToggleState();
     updateResultsSummary();
+    if (options.showToast) {
+      showFilterToast(filteredResults.length);
+    }
 
     // Compute new page 1 slice and diff against currently visible items
     var perPage = resultsPerPage();
@@ -1600,9 +1895,12 @@
    * @param {Set}    [enteringIds] Result IDs that should receive an enter animation.
    */
   function renderPage(page, enteringIds) {
-    currentPage = page;
     var perPage = resultsPerPage();
-    var start = (page - 1) * perPage;
+    var totalPages = Math.max(1, Math.ceil(filteredResults.length / perPage));
+    var targetPage = Math.min(Math.max(page, 1), totalPages);
+
+    currentPage = targetPage;
+    var start = (targetPage - 1) * perPage;
     var pageSlice = filteredResults.slice(start, start + perPage);
 
     if (isTableView()) {
@@ -1696,14 +1994,9 @@
 
           if (immediateSourceLinks.length) {
             $pageIds.html(renderPageLinksHtml(immediateSourceLinks, fileMeta));
-            var initialCount = filterPageLinksByPrefix($pageIds);
-            if (!initialCount && !assetAssetId) {
-              $pageRow.attr("hidden", true);
-              return;
-            }
             $card
               .find('[data-ref="search-result-page-label"]')
-              .text(initialCount > 1 ? "Sources:" : "Source:");
+              .text(immediateSourceLinks.length > 1 ? "Sources:" : "Source:");
           } else {
             $pageIds.text("Loading\u2026");
           }
@@ -1719,14 +2012,9 @@
               return;
             }
             $pageIds.html(renderPageLinksHtml(mergedLinks, fileMeta));
-            var visibleCount = filterPageLinksByPrefix($pageIds);
-            if (!visibleCount) {
-              $pageRow.attr("hidden", true);
-              return;
-            }
             $card
               .find('[data-ref="search-result-page-label"]')
-              .text(visibleCount > 1 ? "Sources:" : "Source:");
+              .text(mergedLinks.length > 1 ? "Sources:" : "Source:");
           });
         })($item);
       }
@@ -1830,27 +2118,10 @@
           resolvePageLinks(assetAssetId).then(function (pageLinks) {
             var mergedLinks = mergeSourceLinks(immediateSourceLinks, pageLinks);
             $cell.html(renderPageLinksHtml(mergedLinks, fileMeta));
-            filterPageLinksByPrefix($cell);
           });
         })($row.find(".doc-search-table__col-pages"), fileMeta);
       }
     });
-  }
-
-  // ── No results state ──────────────────────────────────────────────────────────
-  /**
-   * Toggles visibility of filter controls and sidebar based on result count.
-   * When no results are found, hides: mobile filter button, results header
-    * (summary + controls), table wrapper, sidebar, and pagination.
-   * @param {number} resultCount  Total filtered result count.
-   */
-  function toggleNoResultsState(resultCount) {
-    var noResults = resultCount === 0;
-    $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
-    $(".doc-search-results-header").toggleClass("d-none", noResults);
-    $(".doc-search-table-wrap").toggleClass("d-none", noResults);
-    $("#doc-search-sidebar").toggleClass("d-none", noResults);
-    $("#doc-search-pagination").toggleClass("d-none", noResults);
   }
 
   // ── Results summary line ──────────────────────────────────────────────────────
@@ -1866,9 +2137,13 @@
     var $summary = $("#doc-search-results-summary");
 
     if (total === 0) {
-      $summary.text("");
+      $summary.html("");
     } else {
-      $summary.text(
+      var querySuffix = initialQuery
+        ? ' for "<strong>' + escHtml(initialQuery) + '</strong>"'
+        : "";
+
+      $summary.html(
         "Showing " +
           start +
           "–" +
@@ -1877,7 +2152,7 @@
           total +
           " result" +
           (total !== 1 ? "s" : "") +
-          (initialQuery ? ' for "' + initialQuery + '"' : ""),
+          querySuffix,
       );
     }
   }
@@ -1885,31 +2160,36 @@
   // ── Pagination ──────────────────────────────────────────────────────────────
   /**
    * Rebuilds the #doc-search-pagination nav with Prev, numbered, and Next buttons.
-   * Clears the nav and returns early when there is only one page.
+   * Single-page result sets keep a muted disabled shell visible so pagination
+   * layout remains stable.
    */
   function renderPagination() {
     var $nav = $("#doc-search-pagination");
     var perPage = resultsPerPage();
     var total = filteredResults.length;
     var pages = Math.ceil(total / perPage);
+    var effectivePages = Math.max(pages, 1);
+    var disablePagination = isAllItemsMode() || effectivePages <= 1;
 
     $nav.empty();
-
-    if (pages <= 1) return;
+    $nav.toggleClass("is-disabled", disablePagination);
 
     // Previous
     var $prev = $(
       '<button type="button" class="doc-search-pagination__btn doc-search-pagination__btn--prev">' +
         '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.8052 8.36231C4.6206 8.16354 4.6206 7.83654 4.8052 7.63777L10.522 1.48245C10.7066 1.28368 11.0104 1.28368 11.195 1.48245C11.3796 1.68121 11.3796 2.00822 11.195 2.20698L5.81458 8.00004L11.195 13.7931C11.3796 13.9919 11.3796 14.3189 11.195 14.5176C11.0104 14.7164 10.7066 14.7164 10.522 14.5176L4.8052 8.36231Z" fill="currentColor"/></svg>Prev</button>',
     );
-    if (currentPage === 1) $prev.prop("disabled", true);
+    if (currentPage === 1 || disablePagination) $prev.prop("disabled", true);
     $prev.on("click", function () {
+      if (disablePagination) return;
       renderPage(currentPage - 1);
     });
     $nav.append($prev);
 
     // Page numbers (with ellipsis)
-    var pagesToShow = buildPageRange(currentPage, pages);
+    var pagesToShow = disablePagination
+      ? [1]
+      : buildPageRange(currentPage, effectivePages);
     pagesToShow.forEach(function (p) {
       if (p === "…") {
         $nav.append('<span class="doc-search-pagination__ellipsis">…</span>');
@@ -1926,6 +2206,7 @@
           "click",
           (function (pg) {
             return function () {
+              if (disablePagination) return;
               renderPage(pg);
             };
           })(p),
@@ -1939,8 +2220,11 @@
       '<button type="button" class="doc-search-pagination__btn doc-search-pagination__btn--next">' +
         'Next<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.8052 8.36231C4.6206 8.16354 4.6206 7.83654 4.8052 7.63777L10.522 1.48245C10.7066 1.28368 11.0104 1.28368 11.195 1.48245C11.3796 1.68121 11.3796 2.00822 11.195 2.20698L5.81458 8.00004L11.195 13.7931C11.3796 13.9919 11.3796 14.3189 11.195 14.5176C11.0104 14.7164 10.7066 14.7164 10.522 14.5176L4.8052 8.36231Z" fill="currentColor"/></svg></button>',
     );
-    if (currentPage === pages) $next.prop("disabled", true);
+    if (currentPage === effectivePages || disablePagination) {
+      $next.prop("disabled", true);
+    }
     $next.on("click", function () {
+      if (disablePagination) return;
       renderPage(currentPage + 1);
     });
     $nav.append($next);
@@ -1949,7 +2233,7 @@
   /**
    * Toggles visibility of filter controls and sidebar based on result count.
    * When no results are found, hides: mobile filter button, results header
-    * (summary + controls), table wrapper, sidebar, and pagination.
+   * (summary + controls), table wrapper, sidebar, and pagination.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
@@ -1958,7 +2242,7 @@
     $(".doc-search-results-header").toggleClass("d-none", noResults);
     $(".doc-search-table-wrap").toggleClass("d-none", noResults);
     $("#doc-search-sidebar").toggleClass("d-none", noResults);
-    $("#doc-search-pagination").toggleClass("d-none", noResults);
+    $("#doc-search-pagination-row").toggleClass("d-none", noResults);
   }
 
   /**
@@ -2027,9 +2311,8 @@
   }
 
   /**
-   * Toggles visibility of filter controls and sidebar based on result count.
-   * When no results are found, hides: mobile filter button, results header
-    * (summary + controls), table wrapper, sidebar, drawer, and pagination.
+   * Toggles result-specific controls based on result count while keeping the
+   * desktop filter sidebar available to refine a zero-result selection.
    * @param {number} resultCount  Total filtered result count.
    */
   function toggleNoResultsState(resultCount) {
@@ -2037,8 +2320,8 @@
     $("#doc-search-mobile-filter-btn").toggleClass("d-none", noResults);
     $(".doc-search-results-header").toggleClass("d-none", noResults);
     $(".doc-search-table-wrap").toggleClass("d-none", noResults);
-    $("#doc-search-sidebar").toggleClass("d-none", noResults);
     $("#doc-search-pagination").toggleClass("d-none", noResults);
+    $("#doc-search-pagination-row").toggleClass("d-none", noResults);
   }
 
   // ── HTML helpers ─────────────────────────────────────────────────────────────
@@ -2081,6 +2364,18 @@
       .html()
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  /**
+   * Shows the search clear control only when the input has non-whitespace text.
+   * @param {jQuery} $input
+   */
+  function updateSearchClearButtonVisibility($input) {
+    var $clearBtn = $(".ntgc-search-section__clear-btn");
+    if (!$clearBtn.length || !$input || !$input.length) return;
+
+    var hasQuery = $.trim($input.val() || "") !== "";
+    $clearBtn.prop("hidden", !hasQuery);
   }
 
   // ── Matrix content relocation ──────────────────────────────────────────────
@@ -2192,6 +2487,67 @@
     }
   }
 
+  // ── Feedback relocation ───────────────────────────────────────────────────
+  var feedbackObserver = null;
+  var feedbackObserverTimeoutId = null;
+  var feedbackMediaQuery = window.matchMedia("(max-width: 900px)");
+
+  function disconnectFeedbackObserver() {
+    if (feedbackObserver) {
+      feedbackObserver.disconnect();
+      feedbackObserver = null;
+    }
+    if (feedbackObserverTimeoutId) {
+      window.clearTimeout(feedbackObserverTimeoutId);
+      feedbackObserverTimeoutId = null;
+    }
+  }
+
+  /**
+   * Moves the existing Matrix feedback section to its responsive destination.
+   * @returns {boolean} Whether the feedback section and destination were found.
+   */
+  function moveFeedbackSection() {
+    var feedback = document.getElementById("feedback");
+    var target = document.getElementById(
+      feedbackMediaQuery.matches
+        ? "doc-search-results-col"
+        : "doc-search-sidebar",
+    );
+
+    if (!feedback || !target || feedback === target) return false;
+
+    if (feedback.parentNode !== target) {
+      target.appendChild(feedback);
+    }
+
+    disconnectFeedbackObserver();
+    return true;
+  }
+
+  /**
+   * Handles feedback supplied after page load by Squiz Matrix.
+   */
+  function initFeedbackRelocation() {
+    feedbackMediaQuery.addEventListener("change", moveFeedbackSection);
+
+    if (moveFeedbackSection() || typeof MutationObserver === "undefined") {
+      return;
+    }
+
+    feedbackObserver = new MutationObserver(function () {
+      moveFeedbackSection();
+    });
+    feedbackObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    feedbackObserverTimeoutId = window.setTimeout(function () {
+      disconnectFeedbackObserver();
+    }, ASSET_CONTENTS_OBSERVER_TIMEOUT_MS);
+  }
+
   // ── Core search ──────────────────────────────────────────────────────────────
   /**
    * Executes a search for the given query and renders the results.
@@ -2209,10 +2565,10 @@
    *   applySort() → buildFilters(allResults) → applyFilters() → renderPage(1)
    *
    * When the query returns zero results, buildFilters(allResults) is still called
-  * (with an empty array) so the sidebar renders the full Type/Topic list with
+   * (with an empty array) so the sidebar renders the full Type/Topic list with
    * counts of 0, rather than disappearing entirely.
    *
-  * Existing sort and filter state (activeTypeFilters, activeTopicFilters,
+   * Existing sort and filter state (activeTypeFilters, activeTopicFilters,
    * currentSort) are preserved across calls. Clear those Sets before calling if
    * a clean filter slate is needed.
    *
@@ -2232,6 +2588,7 @@
     $tbody.empty();
     $pag.empty();
     $summary.empty();
+    hideFilterToast();
     setUserMessage("");
 
     // Reset the page-links cache so a new query doesn't reuse stale results.
@@ -2280,7 +2637,8 @@
         // Pre-warm the page-links cache in parallel for every result so card
         // and table renders never block on a fetch and pagination/sort/filter/
         // view-switching can read from cache instantly.
-        prefetchPageLinks(originalResults);
+        var pageLinksPrefetch = prefetchPageLinks(originalResults);
+        publishRecachedSources(pageLinksPrefetch);
 
         applySort();
 
@@ -2437,7 +2795,7 @@
     activeTopicFilters.clear();
     activeOwnerFilter = "";
     $('select[name="doc-search-owner"]').val("");
-    applyFilters();
+    applyFilters({ showToast: true });
   });
 
   // ── Event: checkbox filter change ────────────────────────────────────────────
@@ -2458,7 +2816,7 @@
     } else {
       set.delete(value);
     }
-    applyFilters();
+    applyFilters({ showToast: true });
   });
 
   // ── Event: "Show all" / "Show less" facet toggle ───────────────────────────
@@ -2510,7 +2868,18 @@
   // ── Event: owner change ───────────────────────────────────────────────────────
   $(document).on("change", 'select[name="doc-search-owner"]', function () {
     activeOwnerFilter = $(this).val();
-    applyFilters();
+    applyFilters({ showToast: true });
+  });
+
+  // ── Event: items-per-page change ────────────────────────────────────────────
+  $(document).on("change", "#doc-search-items-per-page", function () {
+    setItemsPerPageSelection($(this).val());
+    currentPage = 1;
+    renderPage(1);
+
+    if (typeof window.syncUserItemsPreference === "function") {
+      window.syncUserItemsPreference(currentItemsPerPage);
+    }
   });
 
   // ── Event: view toggle ───────────────────────────────────────────────────────
@@ -2547,14 +2916,20 @@
   (function () {
     var mq = window.matchMedia("(max-width: 900px)");
     function resetTableViewOnMobile(e) {
-      if (
-        e.matches &&
-        $("#doc-search-results-col").attr("data-view") === "table"
-      ) {
-        $("#doc-search-results-col").attr("data-view", "card");
-        $("#doc-search-view-toggle").attr("aria-pressed", "true");
-        renderPage(currentPage);
+      var savedView = localStorage.getItem("docSearchView");
+      var desktopView =
+        savedView === "table" || savedView === "card" ? savedView : "table";
+      var nextView = e.matches ? "card" : desktopView;
+
+      if (e.matches) {
+        hideFilterToast();
       }
+
+      if ($("#doc-search-results-col").attr("data-view") === nextView) return;
+
+      $("#doc-search-results-col").attr("data-view", nextView);
+      syncViewToggleState();
+      renderPage(currentPage);
     }
     mq.addEventListener("change", resetTableViewOnMobile);
   })();
@@ -2562,9 +2937,11 @@
   // ── Init ─────────────────────────────────────────────────────────────────────
   $(document).ready(function () {
     initAssetContentsRelocation();
+    initFeedbackRelocation();
+    $("#initialLoadingSpinner").removeClass("d-none");
 
     // Read initial state from URL params
-    initialQuery = getUrlParam("searchterm") || "";
+    initialQuery = getUrlParam("policyterm") || "";
     var urlSort = getUrlParam("sort");
 
     if (urlSort && SORT_VALUES[urlSort]) {
@@ -2572,36 +2949,85 @@
     }
     syncSortControls();
 
-    // Restore a saved desktop preference; otherwise the markup defaults to table.
-    var savedView = localStorage.getItem("docSearchView");
-    var initialView =
-      savedView === "table" || savedView === "card" ? savedView : "table";
-
-    // Mobile remains card-only without replacing the saved desktop preference.
-    if (window.matchMedia("(max-width: 900px)").matches) {
-      initialView = "card";
-    }
-
-    $("#doc-search-results-col").attr("data-view", initialView);
-    $("#doc-search-view-toggle").attr(
-      "aria-pressed",
-      initialView === "card" ? "true" : "false",
-    );
-
     // Pre-fill search input if present
     $("#search").val(initialQuery);
+    updateSearchClearButtonVisibility($("#search"));
 
-    // Always load results on page load — independent of form presence
-    runSearch(initialQuery);
+    function getFallbackView() {
+      var savedView = localStorage.getItem("docSearchView");
+      return savedView === "table" || savedView === "card"
+        ? savedView
+        : "table";
+    }
+
+    function getFallbackItemsPerPage() {
+      return normalizeItemsPerPage(
+        localStorage.getItem("docSearchItemsPerPage") || "10",
+      );
+    }
+
+    var preferenceReady = window.docSearchViewPreferenceReady;
+    if (!preferenceReady || typeof preferenceReady.then !== "function") {
+      preferenceReady = Promise.resolve({
+        view: getFallbackView(),
+        itemsPerPage: getFallbackItemsPerPage(),
+      });
+    }
+
+    preferenceReady
+      .catch(function () {
+        return {
+          view: getFallbackView(),
+          itemsPerPage: getFallbackItemsPerPage(),
+        };
+      })
+      .then(function (preferenceState) {
+        var preferredView =
+          preferenceState && typeof preferenceState === "object"
+            ? preferenceState.view
+            : preferenceState;
+        var preferredItems =
+          preferenceState && typeof preferenceState === "object"
+            ? preferenceState.itemsPerPage
+            : getFallbackItemsPerPage();
+        var initialView =
+          preferredView === "card" || preferredView === "table"
+            ? preferredView
+            : getFallbackView();
+
+        // Mobile remains card-only without replacing the saved desktop preference.
+        if (window.matchMedia("(max-width: 900px)").matches) {
+          initialView = "card";
+        }
+
+        setItemsPerPageSelection(preferredItems);
+        $("#doc-search-results-col").attr("data-view", initialView);
+        syncViewToggleState();
+
+        // Always load results on page load — independent of form presence.
+        runSearch(initialQuery);
+      });
 
     // Wire up the search form if it exists on this page
     var $form = $("#policy-search-form");
     if ($form.length) {
+      $form.on("input change", "#search", function () {
+        updateSearchClearButtonVisibility($(this));
+      });
+
+      $form.on("click", ".ntgc-search-section__clear-btn", function (e) {
+        e.preventDefault();
+        var $searchInput = $form.find("#search");
+        $searchInput.val("");
+        updateSearchClearButtonVisibility($searchInput);
+        $searchInput.trigger("focus");
+      });
+
       $form.on("submit", function (e) {
         e.preventDefault();
         var query = $.trim($("#search").val());
         window.location.href =
-          window.location.pathname + "?searchterm=" + encodeURIComponent(query);
+          window.location.pathname + "?policyterm=" + encodeURIComponent(query);
       });
     }
   });

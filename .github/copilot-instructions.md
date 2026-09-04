@@ -70,14 +70,15 @@ document-library/
 
 ## Conventions & Gotchas
 
-- **Squiz keyword placeholder (`%asset_contents%`)**:
-  - `src/search-results.html` intentionally contains the literal Squiz keyword `%asset_contents%` so CMS editors can manage custom message content.
-  - Treat `%asset_contents%` as a protected token: do not remove it, rename it, escape it, wrap it in templating syntax, or move it unless a task explicitly requests changing keyword placement.
-  - Preserve exact spelling and casing: `%asset_contents%`.
+- **Matrix custom content slot (`#custom-content`)**:
+  - `src/search-section.html` intentionally contains `<span id="custom-content"></span>` above the search input.
+  - Runtime code in `src/js/coveo-search.js` moves children from `#asset-contents` into `#custom-content`.
+  - Treat `#custom-content` as a protected integration hook: do not rename or remove it unless the relocation selectors are updated deliberately.
 - **Three-File HTML Synchronization**:
   - `src/search-results.html` is the source template.
   - `index.html` (root) and `search-section-preview.html` are standalone files.
-  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, replacing the generated search UI block through the preview page's search bundle script tag. This ensures structural changes to the search results layout, filters, card template, and adjacent search UI markup such as the view preference modal are synced to the local dev preview automatically without duplication.
+  - The programmatic builder (`syncPreviewTemplate`) in `vite.config.js` automatically copies the entirety of `src/search-results.html` into `search-section-preview.html` on changes, replacing the generated search UI block through the preview page's search bundle script tag. This sync covers results layout, filters, card template, and adjacent search UI markup such as the view preference modal.
+  - The search form block (from `src/search-section.html`) is separate from this sync scope. If form-level structure changes (for example, `#custom-content` placement above the search input), ensure `search-section-preview.html` stays aligned.
 - **CSS Tokens**:
   - Never declare `:root` variables in `search-widget.css` or `collection-page.css` directly. Always place them in `tokens.css`.
 - **`!important` CSS Overrides**:

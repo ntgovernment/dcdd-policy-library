@@ -26,4 +26,5 @@
 import "./css/search-widget.css";
 
 // ── Search JS ─────────────────────────────────────────────────────────────────
+import "./js/view-preference-metadata-patch.js";
 import "./js/coveo-search.js";

@@ -51,42 +51,70 @@ npm run dev
 - Search form markup: `src/search-section.html`
 - Search results layout: `src/search-results.html`
 - Search logic: `src/js/coveo-search.js`
-- Search view metadata patch (standalone): `src/js/view-preference-metadata-patch.js`
+- Search view metadata provider: `src/js/view-preference-metadata-patch.js`
 - Search styles: `src/css/search-widget.css`
 - Collection styles: `src/css/collection-page.css`
 - Shared tokens: `src/css/tokens.css`
 
-## View preference metadata patch (standalone)
+## View and items metadata
 
-This repo includes a standalone script to persist the search view preference to Squiz user metadata:
+The search bundle persists search UI preferences to Squiz user metadata:
 
 - File: `src/js/view-preference-metadata-patch.js`
-- Metadata field: `#969752` (`user.view-preference`)
-- Canonical values saved: `grid` and `table` (default when no preference exists)
-- Local compatibility key: `docSearchView` (`card`/`table`) remains in use
+- View metadata field: `#969752` (`user.view-preference`)
+- View canonical values: `grid` and `table` (default when no preference exists)
+- View local compatibility key: `docSearchView` (`card`/`table`) remains in use
+- Items metadata field: `#980780` (`user.items-preference`)
+- Items canonical values: `10`, `20`, and `all` (default when no preference exists: `10`)
+- Items local key: `docSearchItemsPerPage`
 
 Behavior:
 
-- Reads preference from user metadata on load (cross-device restore).
+- Resolves the initial desktop view before rendering search results.
+- Resolves initial items-per-page preference before first results render.
+- Uses Squiz user metadata first, then local cache, then defaults (`table` for view, `10` for items).
+- Falls back after a bounded metadata request timeout so search loading cannot be blocked by the Matrix API.
+- Starts from `data-view="pending"` in the canonical template so the results area does not paint table before preference resolution completes.
 - Applies the view state to the existing **Show description** toggle (`grid`/card is on; table is off).
+- Keeps the **Show description** toggle synced to the current results view, so table loads with the toggle off and card loads with it on.
 - Writes changes back to metadata when user toggles view or clicks save.
-- Uses `table` as the desktop default when neither metadata nor a local preference exists.
-- Preserves existing saved `grid`/card and `table` choices.
-- On mobile (`<=900px`), keeps UI in card mode while preserving the saved preference.
+- Writes the items-per-page preference back to metadata immediately when the user changes the **Showing** dropdown.
+- Seeds user metadata asynchronously when no remote preference exists.
+- Preserves existing saved `grid`/`table` view choices and `10`/`20`/`all` item-count choices.
+- On mobile (`<=900px`), keeps UI in card mode while preserving and restoring the saved desktop preference.
 
-Integration options:
-
-1. Bundle it into `dist/search-page.js` by importing it in `src/search-page.js`.
-2. Or include it as a separate script in Matrix after the main search/profile scripts.
-
-The script is standalone (IIFE) and can be merged into `global-v2.js` later if desired.
+`src/search-page.js` imports the metadata provider before `src/js/coveo-search.js`, allowing the search initializer to await the preference before its first render.
 
 ## Matrix custom content slot
 
-The search results template includes `<span id="custom-content"></span>` in `src/search-results.html`.
+The local dev preview template includes a populated `<span id="custom-content">...</span>` block in `search-section-preview.html`.
+That content is preview-only and does not live in the production search fragment.
+
+Current preview-only content:
+
+```html
+<div id="component_944142">
+  <p>
+    This library contains resources specific to the Department of Corporate and
+    Digital Development (DCDD) only.
+  </p>
+  <p>
+    For whole-of-government policies, go to
+    <a href="https://ntgcentral.nt.gov.au/policy-library">NTG Central</a>.
+  </p>
+</div>
+```
+
+The production search section template in `src/search-section.html` keeps `#custom-content` empty.
 
 At runtime, `src/js/coveo-search.js` moves child nodes from `#asset-contents` into `#custom-content`.
 This supports Squiz Matrix content that may be injected after page load.
+
+If the injected content includes `#feedback`, the same runtime moves that
+section below the desktop filters or after the mobile search pagination. The
+existing node is reparented when the viewport crosses the 900px breakpoint.
+Its first element uses a 24px top margin to override the central stylesheet's
+larger heading spacing.
 
 Implementation details:
 
@@ -110,12 +138,16 @@ Sorting is client-side and does not trigger a new Coveo request.
 
 - Desktop uses expanded `Sort by` radio buttons above the `Filters` heading in the sidebar.
 - Mobile uses matching `Sort by` radio buttons inside the filter drawer.
+- The Sort by heading uses the same font size as the `Filters` heading (`20px`) and keeps `1em` bottom margin for spacing before the radio list.
 - Desktop radios use `name="doc-search-sort"`; drawer radios use `name="doc-search-drawer-sort"` so drawer changes are staged until the dynamic `Show N results` button is clicked.
 - The mobile drawer footer keeps the primary `Show N results` button and the secondary `Clear all` link visible while the filter controls scroll.
 - Runtime button copy is count-aware: `Show 1 result` for one match, otherwise `Show N results`.
 - Drawer `Clear all` resets staged controls only; results do not update until the user clicks `Show N results`.
 - Sort values are `relevancy`, `date descending`, `alpha ascending`, and `alpha descending`.
-- The results summary (`Showing X-Y of N results`) and the **Show description** toggle share one results header row: summary left, toggle right.
+- Pagination includes a right-side **Showing** dropdown with values `10`, `20`, and `All` shared by card and table views.
+- Selecting `All` shows every filtered result on one page. More generally, whenever the filtered result count fits on a single page for the current selection, pagination remains visible as a muted disabled shell (`Prev`, `1`, `Next`).
+- The results summary (for example, Showing X-Y of N results for "query") and the **Show description** toggle share one results header row: summary left, toggle right.
+- When a search query is present, only the query term in the summary suffix is bolded inside the quote marks.
 - Toggle behavior on desktop: off (`aria-pressed="false"`) = table view, on (`aria-pressed="true"`) = card/grid view with descriptions.
 - In table view, when search/filter results are `0`, the table wrapper is hidden so column headers are not shown.
 
@@ -129,21 +161,21 @@ The search runtime now emits GA4 events for submitted searches and zero-result q
 
 Implementation notes:
 
-- Events are query-scoped and only fire for submitted searches with a non-empty `searchterm` URL parameter.
+- Events are query-scoped and only fire for submitted searches with a non-empty `policyterm` URL parameter.
 - Zero-results tracking is limited to the initial submitted query outcome. Filter-driven empty states do not emit the zero-results event.
 - The runtime fails safely when `window.gtag` is unavailable, so local/generated builds can still run without GA.
 
 GA4 setup required:
 
 1. In the GA4 web data stream, keep Enhanced Measurement enabled.
-2. Add `searchterm` as an additional site-search query parameter so GA4 also collects the built-in `view_search_results` event for this page.
+2. Add `policyterm` as an additional site-search query parameter so GA4 also collects the built-in `view_search_results` event for this page.
 3. Register custom dimensions for `search_term`, `results_count`, and `search_source` on the custom events if you want to report on them in standard GA4 reports or Looker Studio.
 
 ### GA4 setup steps (recommended order)
 
 1. Open GA4 Admin -> Data streams -> Web stream used by the search page.
 2. Confirm Enhanced measurement is enabled and Site search is turned on.
-3. In Site search advanced settings, add `searchterm` as an additional query parameter.
+3. In Site search advanced settings, add `policyterm` as an additional query parameter.
 4. In Admin -> Custom definitions, create event-scoped custom dimensions:
 
 - `search_term`
@@ -201,27 +233,30 @@ File metadata is displayed as `TYPE (SIZE)`, for example `DOCX (615.5 KB)` or `P
 - Collection page headings generated by `scripts/generate-collection-pages.js` use the same format, for example `DCDD recruitment guidelines DOCX (615.5 KB)`.
 - Source and collection links append the plain `formatFileMeta(raw)` value as a browser text fragment, for example `#:~:text=DOCX%20(615.5%20KB)`, so the target page can scroll to and highlight the matching document text.
 
-## Page-link cache behavior (`/_nocache`, `/_recache`)
+## Shared source cache (`/_nocache`, `/_recache`)
 
-Page links resolved by `src/js/coveo-search.js` use two cache layers:
+Resolved source links are shared through Squiz rather than stored in each user's browser:
 
-- In-memory per page load: `pageLinksCache` (always used for deduping repeated resolves).
-- Persistent cache: `localStorage` keys prefixed with `dcdd-page-links:`.
+- Normal production visits load `sources.json` from Squiz Text File asset `#979085` at `https://internal.nt.gov.au/__data/assets/text_file/0011/979085/sources.json` once per page load.
+- If the primary file is unavailable or invalid, the script tries fallback asset `#979093`, then the read-only mock bundled from `src/mock/sources.json`.
+- `pageLinksCache` memoizes resolved Promises for the current search so repeated card/table renders do not repeat work.
+- Old `dcdd-page-links:*` localStorage values are ignored and can remain in users' browsers; no migration is required.
 
-Page-link visibility also applies a runtime prefix rule in `src/js/coveo-search.js`:
+Source links are populated in `src/js/coveo-search.js` as follows:
 
 - If a result includes both `raw.sourcepage` and `raw.sourceurl`, that source link is rendered immediately in the Source field (card and table) before async Matrix page-link resolution completes.
 - When async Matrix page links resolve, they are merged with the immediate source link(s) (immediate first, deduped by URL path).
-- On `internal.nt.gov.au` pages, page links are rendered first, then non-matching links are hidden in the DOM when their base prefix differs from the current page base prefix.
-- Links whose URL starts with `https://ntgcentral.nt.gov.au/` are always kept (not hidden by prefix filtering).
-- Base prefix means: `scheme + host + first path segment` (example: `https://internal.nt.gov.au/dcdd`).
-- Existing path exclusions still apply (`/news/`, `/dev/`, and `archive`).
-- On local/dev hosts (`localhost`, `127.0.0.1`, `*.github.io`), this prefix filter is not enforced.
-- The rendered Sources markup is rebuilt from the remaining links so commas/separators stay correct; if no links remain in card view, the entire Sources row is hidden.
+- Every valid shared source entry for the result's `raw.assetassetid` is rendered, including links to other agency sections and `ntgcentral.nt.gov.au`.
+- The `/news/`, `/dev/`, and `archive` exclusions apply only while generating fresh entries through the live `/_nocache` or `/_recache` resolver; normal rendering does not remove valid entries already stored in `sources.json`.
+- If the complete merged source list is empty in card view, the entire Sources row is hidden.
 
-When the current URL contains `/_nocache` or `/_recache`, the page-link resolver bypasses the persistent `localStorage` layer and fetches fresh link data instead. The in-memory `pageLinksCache` remains active during that page load so card/table rendering, pagination, sorting, and filtering still reuse the same in-flight/resolved Promise.
+When the URL contains `/_nocache`, the resolver bypasses the shared files and fetches fresh links from the Matrix Management API for that page load without publishing them.
 
-When the current URL contains `/_recache`, the first uncached resolve per unique `assetId` logs a debug console entry (`[DCDD] /_recache page-links first-pass`) that includes the full resolved page-link JSON payload for that asset. Because `pageLinksCache` memoizes each Promise, subsequent renders for the same `assetId` in the same page load do not re-log.
+When an authorized editor loads `/_recache`, each unique result asset is resolved live and merged into the existing Squiz source map. The updater acquires the `attributes` lock on asset `#979085`, calls `setContentOfEditableFileAsset`, then releases the lock. Use an empty search for a complete rebuild. Requests use JSAPI key `1603940920` plus a nonce; the updater executes as `internal_content_api #508428`. A success logs `[DCDD] Shared sources updated`. A rejected or failed write logs `[DCDD] Shared sources update failed` with the Squiz response body when available.
+
+If an individual live Management API lookup returns an error such as `403` or `404`, `/_recache` retains that asset's existing shared entry instead of replacing it with an empty array. The success log reports both `updatedAssets` and `retainedAssets`.
+
+The bundled `src/mock/sources.json` fixture mirrors the complete authoritative source map for local display and final read fallback, including explicit empty arrays. Mock data is display-only. If neither Squiz source file can supply an authoritative merge base, `/_recache` aborts publication rather than writing bundled fixture data to asset `#979085`.
 
 ## Build commands
 
