@@ -1,7 +1,7 @@
 import mockSources from "../mock/sources.json";
 
 /**
- * coveo-search.js — DCDD Document Search: Coveo REST API integration
+ * coveo-search.js — Policy Library: Coveo REST API integration
  *
  * ── OVERVIEW ─────────────────────────────────────────────────────────────────
  * Fetches all matching documents from the Coveo Search REST API in a single
@@ -19,9 +19,10 @@ import mockSources from "../mock/sources.json";
  * zero are shown as disabled so users understand they exist but yield no results.
  *
  * ── API ENDPOINT ─────────────────────────────────────────────────────────────
- * Production:  https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query
- *   Squiz Matrix page asset — same-origin (internal.nt.gov.au); returns the
- *   Coveo JSON response directly. Only one param is accepted:
+ * Production:  supplied by #policy-library-config[data-coveo-base-url], which
+ *   the Policy Library Matrix format populates from the selected Coveo REST API
+ *   asset. The endpoint returns the Coveo JSON response directly. Only one
+ *   param is accepted:
  *     ?policyterm=<encoded query>   — omit or empty → returns all documents
  *   Do NOT use the ?a=<assetId> proxy shorthand — that resolves to the
  *   document-search page itself and returns HTML, not JSON.
@@ -253,8 +254,10 @@ import mockSources from "../mock/sources.json";
     return /\/_recache(?:\/|$|\?|#)/i.test(window.location.href);
   }
 
-  var COVEO_BASE_URL =
-    "https://internal.nt.gov.au/dcdd/dev/policy-library/coveo/site/coveo-search-rest-api-query";
+  var configElement = document.getElementById("policy-library-config");
+  var COVEO_BASE_URL = configElement
+    ? (configElement.getAttribute("data-coveo-base-url") || "").trim()
+    : "";
   var MOCK_URL = "./src/mock/coveo-search-rest-api-query.json";
 
   // ── Squiz Matrix Management API (page-link lookups) ──────────────────────────
@@ -975,10 +978,26 @@ import mockSources from "../mock/sources.json";
   /**
    * Builds the Coveo search endpoint URL for the given query string.
    * @param {string} query  Raw (unencoded) search term.
-   * @returns {string} Full URL with ?policyterm= query parameter.
+   * @returns {string} Full URL with a policyterm query parameter.
    */
   function buildCoveoUrl(query) {
-    return COVEO_BASE_URL + "?policyterm=" + encodeURIComponent(query);
+    if (!COVEO_BASE_URL) {
+      throw new Error(
+        "Policy Library Coveo endpoint is not configured. " +
+          "Set the Coveo Search REST API metadata field for this page.",
+      );
+    }
+
+    var url;
+    try {
+      url = new URL(COVEO_BASE_URL, window.location.origin);
+    } catch (error) {
+      throw new Error(
+        "Policy Library Coveo endpoint is invalid: " + COVEO_BASE_URL,
+      );
+    }
+    url.searchParams.set("policyterm", query);
+    return url.toString();
   }
 
   function trackAnalyticsEvent(eventName, params) {
