@@ -19,6 +19,7 @@ function syncPreviewTemplate() {
   preview = preview.replace(
     /        <div class="doc-search-outer">[\s\S]*?        <script type="text\/javascript" src="\.\/dist\/search-page\.js"><\/script>/,
     indented +
+      '\n        <div id="policy-library-config" data-options="Show Collection; Show A-Z listing" hidden></div>' +
       '\n        <script type="text/javascript" src="./dist/search-page.js"></script>',
   );
   writeFileSync("search-section-preview.html", preview, "utf8");

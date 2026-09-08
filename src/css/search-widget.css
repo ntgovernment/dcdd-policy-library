@@ -369,7 +369,11 @@ tr.doc-search-row--moving {
 
 .doc-search-results-col[data-view="pending"] .doc-search-results-list,
 .doc-search-results-col[data-view="pending"] .doc-search-table-wrap {
-  display: none;
+  display: none !important;
+}
+
+.doc-search-results-col[data-view="card"] .doc-search-table-wrap {
+  display: none !important;
 }
 
 /* Individual result card */
@@ -533,13 +537,9 @@ tr.doc-search-row--moving {
   TABLE VIEW  (desktop default via [data-view="table"])
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* Hide card-only elements */
+/* Keep the two result containers mutually exclusive despite central styles. */
 .doc-search-results-col[data-view="table"] .doc-search-results-list {
-  display: block;
-}
-
-.doc-search-results-col[data-view="table"] .doc-search-result {
-  display: none; /* Cards hidden; table shows instead */
+  display: none !important;
 }
 
 /* Table container */
@@ -549,11 +549,136 @@ tr.doc-search-row--moving {
 }
 
 .doc-search-results-col[data-view="table"] .doc-search-table-wrap {
-  display: block;
+  display: block !important;
 }
 
 .doc-search-table-wrap.d-none {
   display: none !important;
+}
+
+/* Collection mode must override the table-view rules above. */
+.doc-search-results-col[data-content-mode="collection"] .doc-search-results-list,
+.doc-search-results-col[data-content-mode="collection"] .doc-search-table-wrap {
+  display: none !important;
+}
+
+.doc-search-results-col[data-content-mode="collection"] .doc-search-collection-list {
+  display: block !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COLLECTION VIEW
+   ══════════════════════════════════════════════════════════════════════════ */
+.doc-search-mode-controls {
+  display: inline-flex;
+  margin: 0 0 24px;
+  border: 1px solid var(--clr-border-subtle, #d0e0e0);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.doc-search-mode-controls__button {
+  min-width: 116px;
+  min-height: 42px;
+  padding: 8px 16px;
+  border: 0;
+  border-right: 1px solid var(--clr-border-subtle, #d0e0e0);
+  background: var(--clr-bg-default, #ffffff);
+  color: var(--clr-text-default, #102040);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.doc-search-mode-controls__button:last-child {
+  border-right: 0;
+}
+
+.doc-search-mode-controls__button.is-active {
+  background: var(--clr-surface-selected, #107810);
+  color: var(--clr-text-inverse, #ffffff);
+}
+
+.doc-search-mode-controls__button:focus-visible,
+.doc-search-letter-filter__button:focus-visible {
+  outline: 3px solid var(--clr-focus, #fd7cb1);
+  outline-offset: -3px;
+}
+
+.doc-search-letter-filter {
+  margin: 0 0 12px;
+}
+
+.doc-search-letter-filter__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.doc-search-letter-filter__button {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--clr-border-subtle, #d0e0e0);
+  border-radius: 0;
+  background: var(--clr-bg-default, #ffffff);
+  color: var(--clr-link-default, #102040);
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.doc-search-letter-filter__button.is-active {
+  border-color: var(--clr-surface-selected, #107810);
+  background: var(--clr-surface-selected, #107810);
+  color: var(--clr-text-inverse, #ffffff);
+}
+
+.doc-search-letter-filter__button:disabled {
+  border-color: var(--clr-neutral-200, #ebebeb);
+  background: var(--clr-bg-shade, #f5f5f7);
+  color: var(--clr-neutral-600, #9a9ba0);
+  cursor: not-allowed;
+}
+
+.doc-search-letter-filter__status {
+  min-height: 24px;
+  margin: 8px 0 0 !important;
+  color: var(--clr-text-alt, #384560);
+  font-size: 14px;
+}
+
+.doc-search-collection-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--clr-border-subtle, #d0e0e0);
+}
+
+.doc-search-collection-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 16px;
+  border-bottom: 1px solid var(--clr-border-subtle, #d0e0e0);
+  background: var(--clr-bg-default, #ffffff);
+}
+
+.doc-search-collection-result__icon {
+  flex: 0 0 auto;
+  color: var(--clr-icon-default, #208820);
+}
+
+.doc-search-collection-result__link {
+  color: var(--clr-link-default, #102040);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  text-decoration: underline;
+}
+
+.doc-search-collection-result__link:hover {
+  color: var(--clr-tertiary, #167abe);
 }
 
 /* Table */
@@ -1216,7 +1341,7 @@ tr.doc-search-row--moving {
    MOBILE FILTER BUTTON  (hidden on desktop, shown ≤ 900 px)
    ══════════════════════════════════════════════════════════════════════════ */
 .doc-search-mobile-filter-btn {
-  display: none; /* hidden on desktop */
+  display: none !important; /* hidden on desktop */
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1391,7 +1516,7 @@ tr.doc-search-row--moving {
 
   /* Show the mobile filter button */
   .doc-search-mobile-filter-btn {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     width: 100%;
@@ -1456,6 +1581,15 @@ tr.doc-search-row--moving {
     min-width: 0;
     max-width: 100%;
     margin-top: 24px;
+  }
+
+  .doc-search-mode-controls {
+    display: flex;
+    width: 100%;
+  }
+
+  .doc-search-mode-controls__button {
+    flex: 1 1 50%;
   }
 }
 

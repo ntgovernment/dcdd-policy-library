@@ -1259,6 +1259,18 @@
                     <div class="doc-search-filter-toast" id="doc-search-filter-toast" role="status" aria-live="polite"
                         aria-atomic="true" hidden></div>
         
+                    <div class="doc-search-mode-controls" id="doc-search-mode-controls" hidden>
+                        <button type="button" class="doc-search-mode-controls__button is-active"
+                            data-search-mode="document" aria-pressed="true">Document</button>
+                        <button type="button" class="doc-search-mode-controls__button"
+                            data-search-mode="collection" aria-pressed="false">Collection</button>
+                    </div>
+        
+                    <div class="doc-search-letter-filter" id="doc-search-letter-filter" hidden>
+                        <div class="doc-search-letter-filter__buttons" role="group" aria-label="Filter collections by letter"></div>
+                        <p class="doc-search-letter-filter__status" aria-live="polite"></p>
+                    </div>
+        
                     <!-- Mobile filter button (hidden on desktop) -->
                     <button type="button" class="doc-search-mobile-filter-btn" id="doc-search-mobile-filter-btn"
                         aria-label="Open filters" aria-expanded="false" aria-controls="doc-search-drawer">
@@ -1301,6 +1313,9 @@
         
                     <!-- Card results list -->
                     <ul class="doc-search-results-list" id="doc-search-results-list" role="list"></ul>
+        
+                    <!-- Collection results list -->
+                    <ul class="doc-search-collection-list" id="doc-search-collection-list" role="list" hidden></ul>
         
                     <!-- Table results -->
                     <div class="doc-search-table-wrap">
@@ -1541,6 +1556,7 @@
                 </div>
             </div>
         </div>
+        <div id="policy-library-config" data-options="Show Collection; Show A-Z listing" hidden></div>
         <script type="text/javascript" src="./dist/search-page.js"></script>
     </div>
 

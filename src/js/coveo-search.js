@@ -258,6 +258,28 @@ import mockSources from "../mock/sources.json";
   var COVEO_BASE_URL = configElement
     ? (configElement.getAttribute("data-coveo-base-url") || "").trim()
     : "";
+  var policyLibraryOptions = new Set(
+    ((configElement && configElement.getAttribute("data-options")) || "")
+      .split(";")
+      .map(function (option) {
+        return option.trim().toLowerCase();
+      })
+      .filter(Boolean),
+  );
+  var collectionViewEnabled = policyLibraryOptions.has("show collection");
+
+  function isAzListingEnabled() {
+    var options = (
+      (document.getElementById("policy-library-config") || {}).getAttribute?.(
+        "data-options",
+      ) || ""
+    )
+      .split(";")
+      .map(function (option) {
+        return option.trim().toLowerCase();
+      });
+    return options.indexOf("show a-z listing") !== -1;
+  }
   var MOCK_URL = "./src/mock/coveo-search-rest-api-query.json";
 
   // ── Squiz Matrix Management API (page-link lookups) ──────────────────────────
@@ -962,6 +984,9 @@ import mockSources from "../mock/sources.json";
   var visibleResultIds = new Set();
   var trackedSearchEvents = {};
   var currentItemsPerPage = "10";
+  var collectionResults = [];
+  var activeContentMode = "document";
+  var activeCollectionLetter = "all";
 
   var FILTER_TOAST_DURATION_MS = 2200;
   var FILTER_TOAST_TRANSITION_MS = 180;
@@ -1215,7 +1240,7 @@ import mockSources from "../mock/sources.json";
       return 20;
     }
     if (currentItemsPerPage === "all") {
-      return Math.max(filteredResults.length, 1);
+      return Math.max(getActiveResults().length, 1);
     }
     return RESULTS_PER_PAGE_DEFAULT;
   }
@@ -1232,6 +1257,147 @@ import mockSources from "../mock/sources.json";
 
   function isAllItemsMode() {
     return currentItemsPerPage === "all";
+  }
+
+  function getVisibleCollections() {
+    return activeCollectionLetter === "all"
+      ? collectionResults
+      : collectionResults.filter(function (collection) {
+          return collection.name.charAt(0).toUpperCase() === activeCollectionLetter;
+        });
+  }
+
+  function getVisibleDocuments() {
+    return activeCollectionLetter === "all"
+      ? filteredResults
+      : filteredResults.filter(function (result) {
+          var raw = result.raw || {};
+          var title = String(raw.resourcefriendlytitle || result.title || "");
+          return title.charAt(0).toUpperCase() === activeCollectionLetter;
+        });
+  }
+
+  function getActiveResults() {
+    return activeContentMode === "collection"
+      ? getVisibleCollections()
+      : getVisibleDocuments();
+  }
+
+  function buildCollections(results) {
+    var collectionsById = {};
+    (results || []).forEach(function (result) {
+      var raw = result.raw || {};
+      var id = String(raw.collectionassetid || "").trim();
+      var name = String(raw.collectionname || "").trim();
+      var url = String(raw.collectionurl || "").trim();
+      var key = id && id !== "none" ? id : url;
+      var dateParts = getBestDateParts(raw);
+
+      if (!key || !name || name === "none" || !url || url === "none") return;
+      if (!collectionsById[key]) {
+        collectionsById[key] = {
+          id: key,
+          name: name,
+          url: url,
+          latestDate: dateParts ? dateParts.date : null,
+        };
+      } else if (
+        dateParts &&
+        (!collectionsById[key].latestDate ||
+          dateParts.date.getTime() > collectionsById[key].latestDate.getTime())
+      ) {
+        collectionsById[key].latestDate = dateParts.date;
+      }
+    });
+
+    return Object.keys(collectionsById)
+      .map(function (key) {
+        return collectionsById[key];
+      })
+      .sort(function (a, b) {
+        return a.name.localeCompare(b.name);
+      });
+  }
+
+  function sortCollections() {
+    collectionResults.sort(function (a, b) {
+      if (currentSort === "alpha descending") {
+        return b.name.localeCompare(a.name);
+      }
+      if (currentSort === "alpha ascending" || currentSort === "relevancy") {
+        return a.name.localeCompare(b.name);
+      }
+      if (!a.latestDate && !b.latestDate) return a.name.localeCompare(b.name);
+      if (!a.latestDate) return 1;
+      if (!b.latestDate) return -1;
+      return b.latestDate.getTime() - a.latestDate.getTime();
+    });
+  }
+
+  function updateContentModeControls() {
+    var isCollectionMode = activeContentMode === "collection";
+    $("#doc-search-results-col").attr("data-content-mode", activeContentMode);
+    $("#doc-search-mode-controls")[
+      collectionViewEnabled ? "removeAttr" : "attr"
+    ]("hidden", "hidden");
+    $("#doc-search-mode-controls [data-search-mode]").each(function () {
+      var isActive = $(this).data("search-mode") === activeContentMode;
+      $(this).toggleClass("is-active", isActive).attr("aria-pressed", isActive);
+    });
+    $("#doc-search-letter-filter")[
+      isAzListingEnabled() ? "removeAttr" : "attr"
+    ]("hidden", "hidden");
+    $("#doc-search-results-list, .doc-search-table-wrap").toggle(!isCollectionMode);
+    $("#doc-search-collection-list")[
+      isCollectionMode ? "removeAttr" : "attr"
+    ]("hidden", "hidden");
+    if (isCollectionMode) {
+      $(".doc-search-results-header, #doc-search-pagination-row, #doc-search-pagination")
+        .removeClass("d-none");
+    }
+    $(".doc-search-results-controls").toggle(!isCollectionMode);
+  }
+
+  function renderCollectionLetterFilter() {
+    if (!isAzListingEnabled()) return;
+    window.setTimeout(function () {
+      $("#doc-search-letter-filter").removeAttr("hidden");
+    }, 0);
+    var $buttons = $(".doc-search-letter-filter__buttons").empty();
+    var letters = ["all"].concat("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""));
+    var results =
+      activeContentMode === "collection" ? collectionResults : filteredResults;
+
+    letters.forEach(function (letter) {
+      var count =
+        letter === "all"
+          ? results.length
+          : results.filter(function (result) {
+              var title =
+                activeContentMode === "collection"
+                  ? result.name
+                  : (result.raw || {}).resourcefriendlytitle || result.title || "";
+              return title.charAt(0).toUpperCase() === letter;
+            }).length;
+      var isActive = activeCollectionLetter === letter;
+      var label = letter === "all" ? "All" : letter;
+      var $button = $(
+        '<button type="button" class="doc-search-letter-filter__button">' +
+          label +
+          "</button>",
+      )
+        .attr("data-collection-letter", letter)
+        .attr("aria-pressed", isActive)
+        .toggleClass("is-active", isActive)
+        .prop("disabled", count === 0);
+      $buttons.append($button);
+    });
+
+    $(".doc-search-letter-filter__status").text(
+      activeCollectionLetter === "all"
+        ? ""
+        : "Filtering by letter " + activeCollectionLetter + ".",
+    );
   }
 
   function isMobileViewport() {
@@ -1676,6 +1842,7 @@ import mockSources from "../mock/sources.json";
           : pa.date.getTime() - pb.date.getTime();
       });
     }
+    sortCollections();
   }
 
   // ── Apply filters ────────────────────────────────────────────────────────────
@@ -1833,18 +2000,30 @@ import mockSources from "../mock/sources.json";
       return true;
     });
 
+    if (activeContentMode === "collection") {
+      updateContentModeControls();
+      renderCollectionLetterFilter();
+      renderPage(1);
+      return;
+    }
+
+    renderCollectionLetterFilter();
+
     // Toggle UI elements based on whether results exist
-    toggleNoResultsState(filteredResults.length);
-    setUserMessage(filteredResults.length === 0 ? buildNoResultsHtml(currentQuery) : "");
+    var activeDocumentResults = getVisibleDocuments();
+    toggleNoResultsState(activeDocumentResults.length);
+    setUserMessage(
+      activeDocumentResults.length === 0 ? buildNoResultsHtml(currentQuery) : "",
+    );
     syncViewToggleState();
     updateResultsSummary();
     if (options.showToast) {
-      showFilterToast(filteredResults.length);
+      showFilterToast(activeDocumentResults.length);
     }
 
     // Compute new page 1 slice and diff against currently visible items
     var perPage = resultsPerPage();
-    var newSlice = filteredResults.slice(0, perPage);
+    var newSlice = activeDocumentResults.slice(0, perPage);
     var newIds = new Set(newSlice.map(resultId));
     var isTable = isTableView();
 
@@ -1915,12 +2094,21 @@ import mockSources from "../mock/sources.json";
    */
   function renderPage(page, enteringIds) {
     var perPage = resultsPerPage();
-    var totalPages = Math.max(1, Math.ceil(filteredResults.length / perPage));
+    var activeResults = getActiveResults();
+    var totalPages = Math.max(1, Math.ceil(activeResults.length / perPage));
     var targetPage = Math.min(Math.max(page, 1), totalPages);
 
     currentPage = targetPage;
     var start = (targetPage - 1) * perPage;
-    var pageSlice = filteredResults.slice(start, start + perPage);
+    var pageSlice = activeResults.slice(start, start + perPage);
+
+    if (activeContentMode === "collection") {
+      renderCollectionResults(pageSlice);
+      visibleResultIds = new Set();
+      updateResultsSummary();
+      renderPagination();
+      return;
+    }
 
     if (isTableView()) {
       renderTableResults(pageSlice, enteringIds);
@@ -1931,6 +2119,21 @@ import mockSources from "../mock/sources.json";
     visibleResultIds = new Set(pageSlice.map(resultId));
     updateResultsSummary();
     renderPagination();
+  }
+
+  function renderCollectionResults(collections) {
+    var $list = $("#doc-search-collection-list").empty();
+    collections.forEach(function (collection) {
+      $list.append(
+        '<li class="doc-search-collection-result">' +
+          '<svg class="doc-search-collection-result__icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v8.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5z"/></svg>' +
+          '<a class="doc-search-collection-result__link" href="' +
+          escAttr(localiseCollectionUrl(collection.url)) +
+          '">' +
+          escHtml(collection.name) +
+          "</a></li>",
+      );
+    });
   }
 
   // ── Card results ─────────────────────────────────────────────────────────────
@@ -2150,7 +2353,7 @@ import mockSources from "../mock/sources.json";
    */
   function updateResultsSummary() {
     var perPage = resultsPerPage();
-    var total = filteredResults.length;
+    var total = getActiveResults().length;
     var start = (currentPage - 1) * perPage + 1;
     var end = Math.min(currentPage * perPage, total);
     var $summary = $("#doc-search-results-summary");
@@ -2158,7 +2361,7 @@ import mockSources from "../mock/sources.json";
     if (total === 0) {
       $summary.html("");
     } else {
-      var querySuffix = initialQuery
+      var querySuffix = activeContentMode === "document" && initialQuery
         ? ' for "<strong>' + escHtml(initialQuery) + '</strong>"'
         : "";
 
@@ -2169,7 +2372,8 @@ import mockSources from "../mock/sources.json";
           end +
           " of " +
           total +
-          " result" +
+          " " +
+          (activeContentMode === "collection" ? "collection" : "result") +
           (total !== 1 ? "s" : "") +
           querySuffix,
       );
@@ -2185,7 +2389,7 @@ import mockSources from "../mock/sources.json";
   function renderPagination() {
     var $nav = $("#doc-search-pagination");
     var perPage = resultsPerPage();
-    var total = filteredResults.length;
+    var total = getActiveResults().length;
     var pages = Math.ceil(total / perPage);
     var effectivePages = Math.max(pages, 1);
     var disablePagination = isAllItemsMode() || effectivePages <= 1;
@@ -2652,6 +2856,9 @@ import mockSources from "../mock/sources.json";
         if (masterResults.length === 0) {
           masterResults = originalResults.slice();
         }
+        collectionResults = buildCollections(masterResults);
+        updateContentModeControls();
+        renderCollectionLetterFilter();
 
         // Pre-warm the page-links cache in parallel for every result so card
         // and table renders never block on a fetch and pagination/sort/filter/
@@ -2683,6 +2890,26 @@ import mockSources from "../mock/sources.json";
   }
 
   // ── Mobile drawer ────────────────────────────────────────────────────────────
+
+  $(document).on("click", "[data-search-mode]", function () {
+    var mode = $(this).data("search-mode");
+    if (mode === "collection" && !collectionViewEnabled) return;
+    activeContentMode = mode;
+    activeCollectionLetter = "all";
+    currentPage = 1;
+    sortCollections();
+    updateContentModeControls();
+    renderCollectionLetterFilter();
+    renderPage(1);
+  });
+
+  $(document).on("click", "[data-collection-letter]", function () {
+    if ($(this).prop("disabled")) return;
+    activeCollectionLetter = $(this).data("collection-letter");
+    currentPage = 1;
+    renderCollectionLetterFilter();
+    renderPage(1);
+  });
 
   /**
    * Populates the drawer's facet lists from the current allResults set,
