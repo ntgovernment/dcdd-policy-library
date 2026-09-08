@@ -1337,9 +1337,10 @@ import mockSources from "../mock/sources.json";
   function updateContentModeControls() {
     var isCollectionMode = activeContentMode === "collection";
     $("#doc-search-results-col").attr("data-content-mode", activeContentMode);
-    $("#doc-search-mode-controls")[
-      collectionViewEnabled ? "removeAttr" : "attr"
-    ]("hidden", "hidden");
+    var $modeControls = $("#doc-search-mode-controls");
+    $modeControls
+      .toggleClass("doc-search-mode-controls--disabled", !collectionViewEnabled)
+      [collectionViewEnabled ? "removeAttr" : "attr"]("hidden", "hidden");
     $("#doc-search-mode-controls [data-search-mode]").each(function () {
       var isActive = $(this).data("search-mode") === activeContentMode;
       $(this).toggleClass("is-active", isActive).attr("aria-pressed", isActive);

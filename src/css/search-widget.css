@@ -577,6 +577,10 @@ tr.doc-search-row--moving {
   overflow: hidden;
 }
 
+.doc-search-mode-controls--disabled {
+  display: none !important;
+}
+
 .doc-search-mode-controls__button {
   min-width: 116px;
   min-height: 42px;
